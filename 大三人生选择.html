@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大三抉择 · 多分支选择故事</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:"Microsoft Yahei",sans-serif;}
+body{background:#f4f6f9;color:#222;padding:20px;max-width:1000px;margin:0 auto;}
+h1{text-align:center;color:#2c3e50;margin-bottom:16px;font-size:24px;}
+.score-panel{background:#fff;border-radius:10px;padding:14px;margin-bottom:18px;box-shadow:0 2px 8px #00000015;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.score-item{padding:6px 12px;border-radius:6px;background:#e8f4fc;}
+.score-label{font-weight:bold;}
+.container{background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px #00000018;}
+.story-text{font-size:17px;line-height:1.7;margin-bottom:24px;min-height:100px;}
+.option-list{display:flex;flex-direction:column;gap:12px;}
+.option-btn{padding:12px 16px;border:1px solid #d0d7e3;border-radius:8px;background:#f8fafc;text-align:left;cursor:pointer;font-size:15px;transition:0.2s;}
+.option-btn:hover{background:#eef6ff;border-color:#7fb8e8;}
+.option-desc{font-size:13px;color:#555;margin-top:4px;}
+.ctrl-bar{margin-top:24px;display:flex;gap:12px;}
+.ctrl-btn{padding:9px 16px;border:none;border-radius:6px;background:#3474b5;color:#fff;cursor:pointer;}
+.ctrl-btn.secondary{background:#888;}
+.ending{background:#fff8dc;border:1px solid #e6d29c;padding:20px;border-radius:10px;}
+.hide{display:none;}
+</style>
+</head>
+<body>
+<h1>大三抉择 — 人生分支故事</h1>
+<div class="score-panel" id="scorePanel">
+  <div class="score-item"><span class="score-label">心智：</span><span id="sMind">0</span></div>
+  <div class="score-item"><span class="score-label">实践：</span><span id="sPractice">0</span></div>
+  <div class="score-item"><span class="score-label">情感：</span><span id="sEmotion">0</span></div>
+  <div class="score-item"><span class="score-label">学业：</span><span id="sStudy">0</span></div>
+  <div class="score-item"><span class="score-label">社交：</span><span id="sSocial">0</span></div>
+</div>
+<div class="container">
+  <div class="story-text" id="storyBox"></div>
+  <div class="option-list" id="optionBox"></div>
+  <div class="ctrl-bar">
+    <button class="ctrl-btn" id="btnBack">回退上一步</button>
+    <button class="ctrl-btn secondary" id="btnRestart">重新开始</button>
+  </div>
+</div>
+
+<script>
+// 分数状态
+let score = {mind:0,practice:0,emotion:0,study:0,social:0};
+// 历史记录，用于回退
+let history = [];
+// 节点数据：每个节点id、文本、选项数组
+// 选项：text, desc, delta{mind,practice,emotion,study,social}, next 下一个节点id
+const nodeData = {
+  start:{
+    text:"你是一名大三学生。站在大学中段，未来的方向一下子铺开：考研、实习、考公、出国、创业、躺平休息……很多选择摆在面前，你需要迈出第一步。",
+    options:[
+      {text:"专心备考研究生，把大部分时间投入专业课复习",desc:"心智+2，学业+4，实践0，情感-1，社交-1",delta:{mind:2,practice:0,emotion:-1,study:4,social:-1},next:"n1"},
+      {text:"去找一份长期实习，积累行业项目经验",desc:"心智+2，实践+4，学业-1，情感0，社交+2",delta:{mind:2,practice:4,emotion:0,study:-1,social:2},next:"n2"},
+      {text:"准备公务员、事业单位考试，走稳定路线",desc:"心智+3，实践+1，学业+2，情感-1，社交0",delta:{mind:3,practice:1,emotion:-1,study:2,social:0},next:"n3"},
+      {text:"准备留学申请，刷语言、绩点、文书",desc:"心智+3，实践+2，学业+3，情感0，社交+1",delta:{mind:3,practice:2,emotion:0,study:3,social:1},next:"n4"},
+      {text:"先暂停内卷，给自己一段时间休息调整情绪",desc:"心智+4，实践-2，学业-2，情感+4，社交-1",delta:{mind:4,practice:-2,emotion:4,study:-2,social:-1},next:"n5"}
+    ]
+  },
+  // 分支1：考研线
+  n1:{
+    text:"你决定考研。第一天坐进自习室，厚重的参考书压在桌上，很快就感受到压力。室友邀约聚餐、社团消息、短视频诱惑不断干扰你。",
+    options:[
+      {text:"严格制定时间表，拒绝一切娱乐，全力刷题",desc:"心智+3，学业+4，实践0，情感-2，社交-2",delta:{mind:3,practice:0,emotion:-2,study:4,social:-2},next:"n1_1"},
+      {text:"找同专业研友组队复习，互相监督打卡",desc:"心智+2，学业+3，实践+1，情感+2，社交+3",delta:{mind:2,practice:1,emotion:2,study:3,social:3},next:"n1_2"},
+      {text:"先看网课打基础，节奏放慢，不逼自己太紧",desc:"心智+3，学业+2，实践0，情感+2，社交0",delta:{mind:3,practice:0,emotion:2,study:2,social:0},next:"n1_3"},
+      {text:"一边考研一边投递实习，双线并行",desc:"心智+4，实践+3，学业+1，情感-2，社交+1",delta:{mind:4,practice:3,emotion:-2,study:1,social:1},next:"n1_4"},
+      {text:"学了几天觉得太难，暂时搁置考研计划",desc:"心智-2，实践+1，学业-3，情感+1，社交+1",delta:{mind:-2,practice:1,emotion:1,study:-3,social:1},next:"n1_5"}
+    ]
+  },
+  n1_1:{
+    text:"你开启高强度闭关模式，早7晚11泡自习室。一段时间后，效率开始下滑，睡眠变差，情绪紧绷。",
+    options:[
+      {text:"咬牙坚持，靠意志力硬扛到考前",desc:"心智+4，学业+5，实践0，情感-4，社交-3",delta:{mind:4,practice:0,emotion:-4,study:5,social:-3},next:"endA"},
+      {text:"每天留出半小时运动，调节状态",desc:"心智+3，学业+2，实践+1，情感+2，社交0",delta:{mind:3,practice:1,emotion:2,study:2,social:0},next:"endB"},
+      {text:"减少学习时长，优先保证睡眠",desc:"心智+2，学业+1，实践0，情感+3，社交0",delta:{mind:2,practice:0,emotion:3,study:1,social:0},next:"endC"},
+      {text:"找辅导员倾诉压力，寻求心理疏导",desc:"心智+3，学业+1，实践0，情感+4，社交+1",delta:{mind:3,practice:0,emotion:4,study:1,social:1},next:"endD"},
+      {text:"心态崩溃，直接放弃考研",desc:"心智-3，实践+2，学业-4，情感-3，社交+1",delta:{mind:-3,practice:2,emotion:-3,study:-4,social:1},next:"endE"}
+    ]
+  },
+  n1_2:{
+    text:"你和研友固定在自习室一起复习，互相讲题、分享资料。但很快出现分歧：对方节奏比你快，经常催促你。",
+    options:[
+      {text:"跟上对方节奏，逼迫自己提速",desc:"心智+2，学业+3，实践0，情感-2，社交-1",delta:{mind:2,practice:0,emotion:-2,study:3,social:-1},next:"endB"},
+      {text:"坦诚沟通，约定各自按自己节奏学习",desc:"心智+3，学业+2，实践+1，情感+3，社交+4",delta:{mind:3,practice:1,emotion:3,study:2,social:4},next:"endD"},
+      {text:"悄悄换位置，不和研友一起学了",desc:"心智+1，学业+2，实践0，情感-1，社交-2",delta:{mind:1,practice:0,emotion:-1,study:2,social:-2},next:"endC"},
+      {text:"多组织小组讨论，吸收更多人的思路",desc:"心智+3，学业+3，实践+2，情感+2，社交+4",delta:{mind:3,practice:2,emotion:2,study:3,social:4},next:"endB"},
+      {text:"觉得组队很累，干脆独自备考",desc:"心智+2，学业+2，实践0，情感+1，社交-3",delta:{mind:2,practice:0,emotion:1,study:2,social:-3},next:"endA"}
+    ]
+  },
+  n1_3:{
+    text:"你选择慢节奏复习，跟着网课稳步推进。进度不快，但每天都能消化知识点，压力比较小。",
+    options:[
+      {text:"继续保持慢节奏，稳扎稳打",desc:"心智+3，学业+2，实践0，情感+3，社交0",delta:{mind:3,practice:0,emotion:3,study:2,social:0},next:"endC"},
+      {text:"增加刷题量，主动加快进度",desc:"心智+2，学业+3，实践+1，情感-1，社交0",delta:{mind:2,practice:1,emotion:-1,study:3,social:0},next:"endB"},
+      {text:"利用空余时间学一点课外技能",desc:"心智+3，实践+3，学业+1，情感+2，社交+1",delta:{mind:3,practice:3,emotion:2,study:1,social:1},next:"endD"},
+      {text:"偶尔和朋友出去玩放松一下",desc:"心智+2，学业+1，实践0，情感+4，社交+3",delta:{mind:2,practice:0,emotion:4,study:1,social:3},next:"endC"},
+      {text:"越学越觉得目标院校太难，换普通院校",desc:"心智+2，学业+1，实践0，情感+2，社交0",delta:{mind:2,practice:0,emotion:2,study:1,social:0},next:"endE"}
+    ]
+  },
+  n1_4:{
+    text:"你一边考研一边投递实习，时间被切成碎片。白天面试、处理工作，晚上挤时间复习，精力严重透支。",
+    options:[
+      {text:"优先实习，考研降为次要目标",desc:"心智+2，实践+4，学业-2，情感0，社交+3",delta:{mind:2,practice:4,emotion:0,study:-2,social:3},next:"endF"},
+      {text:"优先考研，拒绝后续实习邀约",desc:"心智+3，实践0，学业+3，情感-1，社交-2",delta:{mind:3,practice:0,emotion:-1,study:3,social:-2},next:"endA"},
+      {text:"压缩睡眠，两边都不放弃",desc:"心智+4，实践+2，学业+2，情感-4，社交0",delta:{mind:4,practice:2,emotion:-4,study:2,social:0},next:"endB"},
+      {text:"找领导沟通，减少实习工作量",desc:"心智+3，实践+1，学业+2，情感+2，社交+3",delta:{mind:3,practice:1,emotion:2,study:2,social:3},next:"endD"},
+      {text:"两件事都做不好，索性全部停下",desc:"心智-2，实践-1，学业-3，情感-2，社交0",delta:{mind:-2,practice:-1,emotion:-2,study:-3,social:0},next:"endE"}
+    ]
+  },
+  n1_5:{
+    text:"考研的难度吓到了你，你暂时放下复习。现在你需要重新寻找方向。",
+    options:[
+      {text:"转向找实习，走就业路线",desc:"心智+2，实践+4，学业-1，情感0，社交+2",delta:{mind:2,practice:4,emotion:0,study:-1,social:2},next:"n2_1"},
+      {text:"准备考公，备考事业单位",desc:"心智+3，实践+1，学业+2，情感-1，社交0",delta:{mind:3,practice:1,emotion:-1,study:2,social:0},next:"n3_1"},
+      {text:"尝试申请海外学校",desc:"心智+3，实践+2，学业+3，情感0，社交+1",delta:{mind:3,practice:2,emotion:0,study:3,social:1},next:"n4_1"},
+      {text:"先休息一段时间，慢慢思考未来",desc:"心智+4，实践-2，学业-2，情感+4，社交-1",delta:{mind:4,practice:-2,emotion:4,study:-2,social:-1},next:"n5_1"},
+      {text:"尝试小成本副业、自媒体",desc:"心智+2，实践+3，学业-2，情感+1，社交+3",delta:{mind:2,practice:3,emotion:1,study:-2,social:3},next:"endF"}
+    ]
+  },
+  // 分支2：实习就业线
+  n2:{
+    text:"你投递简历，拿到一份实习offer。公司节奏快，需要学习很多新工具，带教老师很忙，不会手把手教你。",
+    options:[
+      {text:"主动多问带教，积极争取任务",desc:"心智+2，实践+4，学业-1，情感0，社交+4",delta:{mind:2,practice:4,emotion:0,study:-1,social:4},next:"n2_1"},
+      {text:"先自己查文档、搜教程独立解决问题",desc:"心智+4，实践+3，学业0，情感+1，社交0",delta:{mind:4,practice:3,emotion:1,study:0,social:0},next:"n2_2"},
+      {text:"只完成分配给自己的基础任务，不多做",desc:"心智+1，实践+2，学业0，情感+1，社交0",delta:{mind:1,practice:2,emotion:1,study:0,social:0},next:"n2_3"},
+      {text:"一边实习，晚上抽时间准备考研",desc:"心智+4，实践+3，学业+2，情感-2，社交+1",delta:{mind:4,practice:3,emotion:-2,study:2,social:1},next:"n1_4"},
+      {text:"实习压力太大，干一段时间离职",desc:"心智-2，实践+1，学业0，情感-3，社交-2",delta:{mind:-2,practice:1,emotion:-3,study:0,social:-2},next:"n5_1"}
+    ]
+  },
+  n2_1:{
+    text:"你积极主动，带教愿意把重要项目交给你，你接触到行业真实业务。但加班变多，学校课程开始落下。",
+    options:[
+      {text:"优先保住实习，课程能缓就缓",desc:"心智+2，实践+5，学业-3，情感-1，社交+2",delta:{mind:2,practice:5,emotion:-1,study:-3,social:2},next:"endF"},
+      {text:"平衡学业和实习，严格控制加班",desc:"心智+3，实践+3，学业+2，情感+1，社交+2",delta:{mind:3,practice:3,emotion:1,study:2,social:2},next:"endD"},
+      {text:"和学校老师沟通，申请灵活交作业",desc:"心智+3，实践+2，学业+1，情感+2，社交+3",delta:{mind:3,practice:2,emotion:2,study:1,social:3},next:"endB"},
+      {text:"攒够项目经历，准备跳槽更好的实习",desc:"心智+3，实践+4，学业-1，情感0，社交+3",delta:{mind:3,practice:4,emotion:0,study:-1,social:3},next:"endF"},
+      {text:"实习已经达标，打算回去考研",desc:"心智+2，实践+2，学业+3，情感-1，社交0",delta:{mind:2,practice:2,emotion:-1,study:3,social:0},next:"n1_1"}
+    ]
+  },
+  n2_2:{
+    text:"你习惯独立查资料解决问题，能力进步很快，但和同事交流很少，大家对你印象不深。",
+    options:[
+      {text:"继续专注技术，少社交",desc:"心智+3，实践+4，学业0，情感0，社交-3",delta:{mind:3,practice:4,emotion:0,study:0,social:-3},next:"endF"},
+      {text:"主动参与部门例会，分享自己成果",desc:"心智+2，实践+3，学业0，情感+2，社交+4",delta:{mind:2,practice:3,emotion:2,study:0,social:4},next:"endD"},
+      {text:"找同事一起吃饭，慢慢熟悉团队",desc:"心智+2，实践+2，学业0，情感+3，社交+4",delta:{mind:2,practice:2,emotion:3,study:0,social:4},next:"endC"},
+      {text:"利用实习学到的技能做个人作品",desc:"心智+3，实践+4，学业0，情感+2，社交+1",delta:{mind:3,practice:4,emotion:2,study:0,social:1},next:"endB"},
+      {text:"觉得孤独，不想继续这份实习",desc:"心智-2，实践+1，学业0，情感-3，社交-2",delta:{mind:-2,practice:1,emotion:-3,study:0,social:-2},next:"n5_1"}
+    ]
+  },
+  n2_3:{
+    text:"你只完成基础任务，不主动揽活。工作轻松，但很难学到新东西，简历含金量提升很慢。",
+    options:[
+      {text:"就这样混完实习拿证明",desc:"心智0，实践+1，学业+1，情感+2，社交0",delta:{mind:0,practice:1,emotion:2,study:1,social:0},next:"endE"},
+      {text:"主动申请加入新项目",desc:"心智+2，实践+4，学业0，情感+1，社交+2",delta:{mind:2,practice:4,emotion:1,study:0,social:2},next:"n2_1"},
+      {text:"利用上班空闲自学别的技能",desc:"心智+3，实践+2，学业+2，情感+2，社交0",delta:{mind:3,practice:2,emotion:2,study:2,social:0},next:"endB"},
+      {text:"换一份更有挑战性的实习",desc:"心智+2，实践+3，学业-1，情感0，社交+2",delta:{mind:2,practice:3,emotion:0,study:-1,social:2},next:"n2_2"},
+      {text:"放弃实习，回学校备考",desc:"心智+2，实践0，学业+3，情感-1，社交0",delta:{mind:2,practice:0,emotion:-1,study:3,social:0},next:"n1_1"}
+    ]
+  },
+  // 分支3：考公线
+  n3:{
+    text:"你选择备考公务员。行测、申论内容庞杂，知识点多，竞争巨大，岗位选择也很关键。",
+    options:[
+      {text:"全职备考，每天刷题、写申论",desc:"心智+4，实践+1，学业+2，情感-2，社交-2",delta:{mind:4,practice:1,emotion:-2,study:2,social:-2},next:"n3_1"},
+      {text:"一边上课一边碎片化学习公考",desc:"心智+3，实践+1，学业+2，情感+1，社交0",delta:{mind:3,practice:1,emotion:1,study:2,social:0},next:"n3_2"},
+      {text:"报线下公考培训班跟着学",desc:"心智+2，实践+2，学业+1，情感+1，社交+3",delta:{mind:2,practice:2,emotion:1,study:1,social:3},next:"n3_3"},
+      {text:"同时准备国企、事业单位考试",desc:"心智+4，实践+2，学业+2，情感-1，社交+1",delta:{mind:4,practice:2,emotion:-1,study:2,social:1},next:"n3_4"},
+      {text:"了解后发现竞争太激烈，放弃考公",desc:"心智-2，实践+1，学业0，情感0，社交+1",delta:{mind:-2,practice:1,emotion:0,study:0,social:1},next:"n5_1"}
+    ]
+  },
+  n3_1:{
+    text:"全职备考公考，你投入大量时间。长期单一刷题很枯燥，身边同学有的实习有的考研，对比之下容易焦虑。",
+    options:[
+      {text:"屏蔽外界信息，专心刷题备考",desc:"心智+4，实践+1，学业+2，情感-3，社交-3",delta:{mind:4,practice:1,emotion:-3,study:2,social:-3},next:"endA"},
+      {text:"定期和考公伙伴交流进度、分享资料",desc:"心智+3，实践+1，学业+2，情感+2，社交+4",delta:{mind:3,practice:1,emotion:2,study:2,social:4},next:"endD"},
+      {text:"每天安排运动，缓解焦虑",desc:"心智+3，实践+1，学业+1，情感+3，社交0",delta:{mind:3,practice:1,emotion:3,study:1,social:0},next:"endC"},
+      {text:"留出时间继续看别的就业方向",desc:"心智+4，实践+2，学业+1，情感+1，社交+1",delta:{mind:4,practice:2,emotion:1,study:1,social:1},next:"endB"},
+      {text:"越学越焦虑，决定不考公了",desc:"心智-3，实践+1，学业-1，情感-3，社交0",delta:{mind:-3,practice:1,emotion:-3,study:-1,social:0},next:"n5_1"}
+    ]
+  },
+  n3_2:{
+    text:"你兼顾在校课程和公考，时间被拆分。上课、作业、行测申论同时压过来，很容易顾此失彼。",
+    options:[
+      {text:"优先保证学校课程，公考放次要",desc:"心智+2，实践+1，学业+4，情感+1，社交0",delta:{mind:2,practice:1,emotion:1,study:4,social:0},next:"endB"},
+      {text:"优先公考，课程只求及格",desc:"心智+3，实践+1，学业-2，情感0，社交-1",delta:{mind:3,practice:1,emotion:0,study:-2,social:-1},next:"endA"},
+      {text:"制作精细计划表，严格分配时间",desc:"心智+4，实践+2，学业+2，情感+1，社交0",delta:{mind:4,practice:2,emotion:1,study:2,social:0},next:"endD"},
+      {text:"找同学组队，互相抽背知识点",desc:"心智+2，实践+1，学业+2，情感+2，社交+4",delta:{mind:2,practice:1,emotion:2,study:2,social:4},next:"endC"},
+      {text:"负担太重，放弃公考",desc:"心智-2，实践+1，学业+1，情感-2，社交0",delta:{mind:-2,practice:1,emotion:-2,study:1,social:0},next:"n5_1"}
+    ]
+  },
+  n3_3:{
+    text:"你报名公考培训班，有老师讲课、模考、同学一起学习。培训班节奏快，作业量大。",
+    options:[
+      {text:"紧跟培训班节奏，完成全部任务",desc:"心智+3，实践+2，学业+2，情感-1，社交+3",delta:{mind:3,practice:2,emotion:-1,study:2,social:3},next:"endA"},
+      {text:"选择性听课，只补自己薄弱模块",desc:"心智+4，实践+1，学业+2，情感+2，社交0",delta:{mind:4,practice:1,emotion:2,study:2,social:0},next:"endB"},
+      {text:"和培训班同学抱团，互相鼓励",desc:"心智+2，实践+1，学业+2，情感+3，社交+4",delta:{mind:2,practice:1,emotion:3,study:2,social:4},next:"endC"},
+      {text:"对比自学，觉得培训班性价比很低",desc:"心智+3，实践0，学业+1，情感-2，社交-1",delta:{mind:3,practice:0,emotion:-2,study:1,social:-1},next:"endE"},
+      {text:"培训班压力太大，退出备考",desc:"心智-3，实践+1，学业0，情感-3，社交-2",delta:{mind:-3,practice:1,emotion:-3,study:0,social:-2},next:"n5_1"}
+    ]
+  },
+  n3_4:{
+    text:"你广撒网，公务员、事业单位、国企一起准备，考试多、内容有重合但侧重点不一样。",
+    options:[
+      {text:"统一复习公共基础，多投岗位",desc:"心智+4，实践+2，学业+1，情感-2，社交+1",delta:{mind:4,practice:2,emotion:-2,study:1,social:1},next:"endA"},
+      {text:"筛选岗位，只选最匹配自己的",desc:"心智+4，实践+1，学业+2，情感+1，社交0",delta:{mind:4,practice:1,emotion:1,study:2,social:0},next:"endB"},
+      {text:"向学长学姐请教岗位选择经验",desc:"心智+3，实践+1，学业+1，情感+2，社交+4",delta:{mind:3,practice:1,emotion:2,study:1,social:4},next:"endD"},
+      {text:"一边备考一边投递企业实习保底",desc:"心智+4，实践+3，学业+1，情感-1，社交+2",delta:{mind:4,practice:3,emotion:-1,study:1,social:2},next:"endF"},
+      {text:"考试太多疲于奔命，精简目标",desc:"心智+2，实践0，学业+1，情感+2，社交0",delta:{mind:2,practice:0,emotion:2,study:1,social:0},next:"endC"}
+    ]
+  },
+  // 分支4：留学线
+  n4:{
+    text:"你计划留学。摆在面前的是语言考试、GPA、科研、竞赛、文书、推荐信，每一项都需要投入大量精力。",
+    options:[
+      {text:"优先刷雅思/托福分数，主攻语言",desc:"心智+3，实践+2，学业+3，情感-1，社交+1",delta:{mind:3,practice:2,emotion:-1,study:3,social:1},next:"n4_1"},
+      {text:"优先提升绩点，把专业课考高",desc:"心智+2，实践+1，学业+5，情感-1，社交0",delta:{mind:2,practice:1,emotion:-1,study:5,social:0},next:"n4_2"},
+      {text:"找导师进实验室，做科研项目",desc:"心智+4，实践+4，学业+2，情感0，社交+2",delta:{mind:4,practice:4,emotion:0,study:2,social:2},next:"n4_3"},
+      {text:"找中介全程帮忙处理申请文书",desc:"心智+1，实践+2，学业+2，情感+1，社交+2",delta:{mind:1,practice:2,emotion:1,study:2,social:2},next:"n4_4"},
+      {text:"了解开销、难度后，放弃留学想法",desc:"心智-2，实践0，学业+1，情感0，社交0",delta:{mind:-2,practice:0,emotion:0,study:1,social:0},next:"n5_1"}
+    ]
+  },
+  n4_1:{
+    text:"你把重心放在语言考试，背单词、练听力口语。语言提升很慢，反复考试很磨心态。",
+    options:[
+      {text:"报口语班，大量练习输出",desc:"心智+2，实践+3，学业+2，情感+1，社交+4",delta:{mind:2,practice:3,emotion:1,study:2,social:4},next:"endD"},
+      {text:"自主刷题，反复刷真题",desc:"心智+3，实践+2，学业+3，情感-1，社交0",delta:{mind:3,practice:2,emotion:-1,study:3,social:0},next:"endB"},
+      {text:"找语伴练习口语，互相交流",desc:"心智+2，实践+2，学业+2，情感+3，社交+4",delta:{mind:2,practice:2,emotion:3,study:2,social:4},next:"endC"},
+      {text:"先搁置语言，去做科研实习丰富背景",desc:"心智+3，实践+4，学业+1，情感0，社交+2",delta:{mind:3,practice:4,emotion:0,study:1,social:2},next:"endF"},
+      {text:"语言多次考不出，放弃留学",desc:"心智-3，实践0，学业+1，情感-3，社交-1",delta:{mind:-3,practice:0,emotion:-3,study:1,social:-1},next:"n5_1"}
+    ]
+  },
+  n4_2:{
+    text:"你全力拉高GPA，认真对待每一门专业课。作业、论文、期末复习占满你的时间。",
+    options:[
+      {text:"持续稳住绩点，同时准备语言",desc:"心智+3，实践+2，学业+4，情感-1，社交0",delta:{mind:3,practice:2,emotion:-1,study:4,social:0},next:"endB"},
+      {text:"找老师争取高分，积极课堂互动",desc:"心智+2，实践+1，学业+3，情感+1，社交+3",delta:{mind:2,practice:1,emotion:1,study:3,social:3},next:"endD"},
+      {text:"用空余时间参与短期科研项目",desc:"心智+4，实践+3，学业+2，情感+1，社交+2",delta:{mind:4,practice:3,emotion:1,study:2,social:2},next:"endF"},
+      {text:"只保绩点，不额外做背景提升",desc:"心智+2，实践0，学业+4，情感+2，社交0",delta:{mind:2,practice:0,emotion:2,study:4,social:0},next:"endC"},
+      {text:"绩点提升有限，转向考研",desc:"心智+2，实践0，学业+3，情感0，社交0",delta:{mind:2,practice:0,emotion:0,study:3,social:0},next:"n1_1"}
+    ]
+  },
+  n4_3:{
+    text:"你加入课题组，跟着导师做科研。实验、文献、数据处理很枯燥，还经常遇到失败。",
+    options:[
+      {text:"坚持深耕，争取产出论文成果",desc:"心智+4，实践+5，学业+2，情感-1，社交+1",delta:{mind:4,practice:5,emotion:-1,study:2,social:1},next:"endF"},
+      {text:"多和组内师兄师姐请教学习",desc:"心智+3，实践+3，学业+2，情感+2，社交+4",delta:{mind:3,practice:3,emotion:2,study:2,social:4},next:"endD"},
+      {text:"科研压力太大，退出课题组",desc:"心智-2，实践+1，学业+1，情感-3，社交-2",delta:{mind:-2,practice:1,emotion:-3,study:1,social:-2},next:"n4_1"},
+      {text:"科研之余，同步准备语言考试",desc:"心智+4，实践+3，学业+3，情感-2，社交0",delta:{mind:4,practice:3,emotion:-2,study:3,social:0},next:"endB"},
+      {text:"科研体验不错，考虑国内读学硕",desc:"心智+3，实践+3，学业+3，情感+1，社交+1",delta:{mind:3,practice:3,emotion:1,study:3,social:1},next:"n1_1"}
+    ]
+  },
+  n4_4:{
+    text:"你委托留学中介协助申请。中介帮你梳理文书、选校，但你需要配合提供素材、核对信息。",
+    options:[
+      {text:"积极配合中介，认真打磨文书",desc:"心智+2，实践+2，学业+2，情感+2，社交+2",delta:{mind:2,practice:2,emotion:2,study:2,social:2},next:"endD"},
+      {text:"只简单提供素材，全权交给中介",desc:"心智+1，实践+1，学业+1，情感+2，社交0",delta:{mind:1,practice:1,emotion:2,study:1,social:0},next:"endC"},
+      {text:"自己同时对比DIY申请流程",desc:"心智+4，实践+3，学业+2，情感+1，社交+1",delta:{mind:4,practice:3,emotion:1,study:2,social:1},next:"endB"},
+      {text:"发现中介不靠谱，改为DIY",desc:"心智+4，实践+4，学业+2，情感-2，社交0",delta:{mind:4,practice:4,emotion:-2,study:2,social:0},next:"endF"},
+      {text:"高昂费用让你退缩，放弃留学",desc:"心智-2，实践0，学业+1，情感-2，社交-1",delta:{mind:-2,practice:0,emotion:-2,study:1,social:-1},next:"n5_1"}
+    ]
+  },
+  // 分支5：休整调整线
+  n5:{
+    text:"你决定先停下来，不急于内卷。你想把情绪、身体状态先调整好，再做选择。但身边人都在赶路，很容易有负罪感。",
+    options:[
+      {text:"好好休息，运动、调养身心",desc:"心智+3，实践-1，学业-1，情感+4，社交0",delta:{mind:3,practice:-1,emotion:4,study:-1,social:0},next:"n5_1"},
+      {text:"和家人深度沟通，听听他们建议",desc:"心智+2，实践0，学业0，情感+4，社交+2",delta:{mind:2,practice:0,emotion:4,study:0,social:2},next:"n5_2"},
+      {text:"和不同方向的学长学姐聊天调研",desc:"心智+4，实践+1，学业0，情感+2，社交+4",delta:{mind:4,practice:1,emotion:2,study:0,social:4},next:"n5_3"},
+      {text:"利用这段时间尝试副业、兴趣项目",desc:"心智+2，实践+4，学业-2，情感+2，社交+3",delta:{mind:2,practice:4,emotion:2,study:-2,social:3},next:"endF"},
+      {text:"休息一段时间后，重新决定考研",desc:"心智+2，实践0，学业+3，情感+1，社交0",delta:{mind:2,practice:0,emotion:1,study:3,social:0},next:"n1_1"}
+    ]
+  },
+  n5_1:{
+    text:"你给自己一段放空的时间，慢慢消化焦虑。你不再被别人的节奏裹挟，开始倾听自己想要什么。",
+    options:[
+      {text:"休整完毕，准备考研",desc:"心智+2，实践0，学业+3，情感+1，社交0",delta:{mind:2,practice:0,emotion:1,study:3,social:0},next:"n1_1"},
+      {text:"休整完毕，去找实习就业",desc:"心智+2，实践+4，学业-1，情感+1，社交+2",delta:{mind:2,practice:4,emotion:1,study:-1,social:2},next:"n2_1"},
+      {text:"休整完毕，准备考公",desc:"心智+3，实践+1，学业+2，情感+1，社交0",delta:{mind:3,practice:1,emotion:1,study:2,social:0},next:"n3_1"},
+      {text:"休整完毕，准备留学申请",desc:"心智+3，实践+2，学业+3，情感+1，社交+1",delta:{mind:3,practice:2,emotion:1,study:3,social:1},next:"n4_1"},
+      {text:"继续保持松弛，慢慢探索长期方向",desc:"心智+4，实践+1，学业0，情感+4，社交+1",delta:{mind:4,practice:1,emotion:4,study:0,social:1},next:"endC"}
+    ]
+  },
+  n5_2:{
+    text:"你认真和家人聊了未来，家人的期待、顾虑、支持，会影响你的判断。",
+    options:[
+      {text:"尊重家人想法，选择稳定路线考公",desc:"心智+2，实践+1，学业+2，情感+3，社交0",delta:{mind:2,practice:1,emotion:3,study:2,social:0},next:"n3_1"},
+      {text:"说服家人，坚持自己想走的路",desc:"心智+4，实践+2，学业+2，情感+2，社交+3",delta:{mind:4,practice:2,emotion:2,study:2,social:3},next:"endD"},
+      {text:"家人不支持，你陷入纠结内耗",desc:"心智-2，实践0，学业0，情感-3，社交-1",delta:{mind:-2,practice:0,emotion:-3,study:0,social:-1},next:"n5_1"},
+      {text:"和家人商量，先实习试错再决定",desc:"心智+3，实践+3，学业+1，情感+3，社交+2",delta:{mind:3,practice:3,emotion:3,study:1,social:2},next:"n2_1"},
+      {text:"家人支持你考研，安心备考",desc:"心智+2，实践0，学业+3，情感+3，社交0",delta:{mind:2,practice:0,emotion:3,study:3,social:0},next:"n1_1"}
+    ]
+  },
+  n5_3:{
+    text:"你主动找不同方向的学长学姐交流，听到很多真实的利弊、坑点、行业真相。",
+    options:[
+      {text:"听完觉得考研更适合自己",desc:"心智+3，实践0，学业+3，情感+1，社交+3",delta:{mind:3,practice:0,emotion:1,study:3,social:3},next:"n1_1"},
+      {text:"听完优先选择实习就业",desc:"心智+3，实践+4，学业-1，情感+1，社交+3",delta:{mind:3,practice:4,emotion:1,study:-1,social:3},next:"n2_1"},
+      {text:"听完觉得考公稳妥，适合自己",desc:"心智+3，实践+1，学业+2，情感+1，社交+3",delta:{mind:3,practice:1,emotion:1,study:2,social:3},next:"n3_1"},
+      {text:"听完决定尝试留学道路",desc:"心智+3，实践+2，学业+3，情感+1，社交+3",delta:{mind:3,practice:2,emotion:1,study:3,social:3},next:"n4_1"},
+      {text:"信息太多，反而更加迷茫",desc:"心智-2，实践0，学业0，情感-2，社交+1",delta:{mind:-2,practice:0,emotion:-2,study:0,social:1},next:"n5_1"}
+    ]
+    
+  },
+  // 结局节点
+  endA:{
+    isEnd:true,
+    text:"【结局：孤注一掷】你把全部精力压在一条赛道上，意志极强，学业、心智得到很大提升，但牺牲了情绪健康和社交。这条路风险高，一旦失利，容易承受巨大打击。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  },
+  endB:{
+    isEnd:true,
+    text:"【结局：稳健成长】你节奏可控，懂得平衡，持续积累能力。心智、学业稳步上涨，压力适中，是大部分人比较稳妥的成长路线。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  },
+  endC:{
+    isEnd:true,
+    text:"【结局：自洽松弛】你优先照顾自己的感受，接纳节奏慢，情绪稳定。情感分很高，不盲目内卷，找到属于自己的步调。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  },
+  endD:{
+    isEnd:true,
+    text:"【结局：善借他人】你擅长沟通、求助、组队，社交与情感属性突出。懂得链接资源，在协作中拿到机会，抗压和恢复能力很强。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  },
+  endE:{
+    isEnd:true,
+    text:"【结局：中途转向】你在一条路上尝试之后及时止损，主动换方向。虽然没有在当前赛道拿到结果，但你收获了试错经验。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  },
+  endF:{
+    isEnd:true,
+    text:"【结局：实践落地】你偏向动手、项目、行业经验，实践分最高。你更看重真实产出，适合走技术、项目、就业路线。\n最终分数：心智${mind}，实践${practice}，情感${emotion}，学业${study}，社交${social}"
+  }
+};
+
+let currentId = "start";
+
+// 渲染函数
+function render(){
+  const node = nodeData[currentId];
+  document.getElementById("sMind").innerText = score.mind;
+  document.getElementById("sPractice").innerText = score.practice;
+  document.getElementById("sEmotion").innerText = score.emotion;
+  document.getElementById("sStudy").innerText = score.study;
+  document.getElementById("sSocial").innerText = score.social;
+
+  const box = document.getElementById("storyBox");
+  const optBox = document.getElementById("optionBox");
+  optBox.innerHTML = "";
+
+  if(node.isEnd){
+    let t = node.text
+      .replace("${mind}",score.mind)
+      .replace("${practice}",score.practice)
+      .replace("${emotion}",score.emotion)
+      .replace("${study}",score.study)
+      .replace("${social}",score.social);
+    box.innerHTML = `<div class="ending">${t}</div>`;
+    return;
+  }
+  box.innerText = node.text;
+  node.options.forEach(opt=>{
+    const btn = document.createElement("button");
+    btn.className = "option-btn";
+    btn.innerHTML = opt.text + `<div class="option-desc">${opt.desc}</div>`;
+    btn.onclick = ()=>{
+      // 保存历史
+      history.push({id:currentId,score:JSON.parse(JSON.stringify(score))});
+      // 加分
+      score.mind += opt.delta.mind;
+      score.practice += opt.delta.practice;
+      score.emotion += opt.delta.emotion;
+      score.study += opt.delta.study;
+      score.social += opt.delta.social;
+      currentId = opt.next;
+      render();
+    };
+    optBox.appendChild(btn);
+  })
+}
+
+// 回退
+document.getElementById("btnBack").onclick = function(){
+  if(history.length===0) return alert("已经是起点，无法回退");
+  const last = history.pop();
+  currentId = last.id;
+  score = last.score;
+  render();
+}
+
+// 重启
+document.getElementById("btnRestart").onclick = function(){
+  score = {mind:0,practice:0,emotion:0,study:0,social:0};
+  history = [];
+  currentId = "start";
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
