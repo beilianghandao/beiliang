@@ -13,7 +13,15 @@
     <view class="stats-row"><view wx:for="{{statsArray}}" wx:key="key" class="stat-chip"><text class="stat-icon" style="color:{{item.color}}">{{item.icon}}</text><text>{{item.name}}</text><text class="stat-number">{{item.value}}</text></view></view>
   </view>
 
-  <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 64 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view></view>
+  <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 64 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view><view class="achv-count">已解锁成就 {{achvCount}} / {{achvTotal}}</view></view>
+
+  <!-- 成就解锁全屏飘条 -->
+  <view class="achv-layer">
+    <view wx:for="{{achvToasts}}" wx:key="id" class="achv-toast">
+      <view class="achv-ribbon"><text class="achv-tag">ACHIEVEMENT UNLOCKED</text></view>
+      <view class="achv-main"><view class="achv-icon" style="color:{{item.tierColor}};border-color:{{item.tierColor}}">{{item.icon}}</view><view class="achv-info"><view class="achv-name">{{item.name}}</view><view class="achv-desc">{{item.desc}}</view></view><view class="achv-tier" style="background:{{item.tierColor}}">{{item.tierLabel}}级成就</view></view>
+    </view>
+  </view>
 
   <button wx:if="{{nearby && !modal}}" class="location-toast" bindtap="interact"><text class="location-pin">⌖</text><view><text class="location-name">{{nearby.name}}</text><text class="location-tip">点击进入，查看可做的任务</text></view></button>
 
@@ -59,17 +67,38 @@
       <view class="guide-item"><text>01</text><view><text class="guide-bold">四年八学期</text><text class="guide-para">8 个学期覆盖完整大学四年。每学期 8 周行动 + 1 次期末考；每个场景有多轮剧情问答，可在不同学期持续探索。</text></view></view>
       <view class="guide-item"><text>02</text><view><text class="guide-bold">自由探索</text><text class="guide-para">点击地面寻路。走近建筑入口与 NPC 后，点击提示卡片进入场景。</text></view></view>
       <view class="guide-item"><text>03</text><view><text class="guide-bold">做出选择</text><text class="guide-para">64 段故事均包含至少 5 轮连续问答；最终选择完成任务，重复完成仍有递减收益。</text></view></view>
-      <view class="guide-item"><text>04</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
-      <view class="guide-item"><text>05</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道情境题 + 日常成长计分。毕业时综合五项属性、属性组合和四年均分，走向 35 种不同结局之一。</text></view></view>
-      <button class="secondary-button" bindtap="closeModal">我准备好了</button><button class="text-button" bindtap="restart">重新选择角色</button>
+      <view class="guide-item"><text>04</text><view><text class="guide-bold">收集成就</text><text class="guide-para">{{achvTotal}} 项成就等待解锁：完成故事、提升属性、考试全对……解锁时会有全屏飘条提示，结算页可回看学期成绩柱状对比。</text></view></view>
+      <view class="guide-item"><text>05</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
+      <view class="guide-item"><text>06</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道限时情境题（每题 30 秒，超时按错处理，切后台自动暂停）+ 日常成长计分。毕业时综合五项属性、属性组合和四年均分，走向 35 种不同结局之一。</text></view></view>
+      <button class="secondary-button" bindtap="openAchievements">成就图鉴</button><button class="secondary-button" bindtap="closeModal">我准备好了</button><button class="text-button" bindtap="restart">重新选择角色</button>
     </view>
 
-    <view wx:if="{{modal === 'examIntro'}}" class="small-panel exam-intro"><view class="exam-emblem">末</view><view class="panel-kicker">FINAL EXAMINATION</view><view class="panel-title">{{examSemesterName}} · 期末考试</view><view class="exam-desc">{{isFinal ? '这是大学生涯的最后一场考试。' : '一学期的探索与选择，都将成为此刻的底气。'}}共 5 道情境题，日常学识与实践也会影响成绩。</view><view class="exam-rule"><text>答题正确</text><text class="exam-points">50 分</text><text>日常成长</text><text class="exam-points">50 分</text></view><button class="primary-button" bindtap="startExam">开始作答</button></view>
+    <view wx:if="{{modal === 'achv'}}" class="small-panel achv-panel">
+      <view class="panel-close" bindtap="closeModal">×</view>
+      <view class="panel-kicker">ACHIEVEMENT COLLECTION</view>
+      <view class="panel-title">成就图鉴</view>
+      <view class="achv-summary"><view class="achv-summary-bar"><view style="width:{{achvUnlocked / achvTotal * 100}}%"></view></view><text>{{achvUnlocked}} / {{achvTotal}} 已解锁</text></view>
+      <scroll-view scroll-y class="achv-grid">
+        <view wx:for="{{achvList}}" wx:key="id" class="achv-cell {{item.unlocked ? 'on' : ''}}">
+          <view class="achv-cell-icon" style="color:{{item.catColor}}">{{item.icon}}</view>
+          <view class="achv-cell-body"><view class="achv-cell-name">{{item.name}}<text class="achv-cell-cat">{{item.catName}} · {{item.tierLabel}}级</text></view><text class="achv-cell-desc">{{item.desc}}</text><view class="achv-cell-bar"><view style="width:{{item.progress}}%"></view></view></view>
+        </view>
+      </scroll-view>
+      <button class="secondary-button" bindtap="closeModal">返回</button>
+    </view>
 
-    <view wx:if="{{modal === 'exam'}}" class="small-panel exam-panel"><view class="exam-progress-head"><text>第 {{semester}} 学期期末考</text><text>{{examIndex + 1}} / 5</text></view><view class="exam-progress-track"><view style="width:{{(examIndex + 1) * 20}}%"></view></view><view class="exam-question">{{currentQuestion.question}}</view><view class="exam-options"><button wx:for="{{currentQuestion.options}}" wx:key="index" data-index="{{index}}" bindtap="answerExam"><text>{{item}}</text><text>›</text></button></view><view class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</view></view>
+    <view wx:if="{{modal === 'examIntro'}}" class="small-panel exam-intro"><view class="exam-emblem">末</view><view class="panel-kicker">FINAL EXAMINATION</view><view class="panel-title">{{examSemesterName}} · 期末考试</view><view class="exam-desc">{{isFinal ? '这是大学生涯的最后一场考试。' : '一学期的探索与选择，都将成为此刻的底气。'}}共 5 道情境题，日常学识与实践也会影响成绩。</view><view class="exam-rule"><text>答题正确</text><text class="exam-points">50 分</text><text>日常成长</text><text class="exam-points">50 分</text></view><view class="exam-rule"><text>每题限时</text><text class="exam-points">30 秒</text><text>超时</text><text class="exam-points">按错处理</text></view><button class="primary-button" bindtap="startExam">开始作答</button></view>
 
-    <view wx:if="{{modal === 'semester'}}" class="small-panel"><view class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</view><view class="panel-kicker">SEMESTER COMPLETE</view><view class="panel-title">{{semesterResult.semesterName}} 结束</view><view class="score-ring"><text>{{semesterResult.score}}</text><text class="score-label">期末成绩</text></view><view class="exam-desc">假期里你好好休整了一番，精力大幅恢复。接下来是 {{nextSemesterName}}。</view><view class="exam-rule"><text>答对</text><text class="exam-points">{{semesterResult.correct}} / 5 题</text><text>已完成学期</text><text class="exam-points">{{semester}} / 8</text></view><button class="primary-button" bindtap="nextSemester">进入{{nextSemesterName}} →</button></view>
+    <view wx:if="{{modal === 'exam'}}" class="small-panel exam-panel"><view class="exam-progress-head"><text>第 {{semester}} 学期期末考</text><text>{{examIndex + 1}} / 5</text></view><view class="exam-progress-track"><view style="width:{{(examIndex + 1) * 20}}%"></view></view>
+      <view class="exam-timer-row {{examHurry ? 'exam-hurry' : ''}} {{examTimeoutFlash ? 'exam-timeout-flash' : ''}}"><text class="exam-timer-label">⏱ 本题限时</text><view class="exam-timer-num">{{examTimerText}}</view><view class="exam-timer-track"><view style="width:{{examTimerWidth}}%"></view></view></view>
+      <view class="exam-question">{{currentQuestion.question}}</view><view class="exam-options"><button wx:for="{{currentQuestion.options}}" wx:key="index" data-index="{{index}}" bindtap="answerExam"><text>{{item}}</text><text>›</text></button></view><view class="exam-note">切后台会暂停计时；超时未作答按错处理</view></view>
 
-    <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view><view class="ending-text">{{ending.text}}</view><view class="ending-stats"><view wx:for="{{statsArray}}" wx:key="key"><text>{{item.name}}</text><text class="ending-value">{{item.value}}</text></view></view><view class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</view><button class="primary-button" bindtap="restart">开启另一种人生</button></view>
+    <view wx:if="{{modal === 'semester'}}" class="small-panel"><view class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</view><view class="panel-kicker">SEMESTER COMPLETE</view><view class="panel-title">{{semesterResult.semesterName}} 结束</view><view class="score-ring"><text>{{semesterResult.score}}</text><text class="score-label">期末成绩</text></view>
+      <view class="semester-chart"><view class="chart-title">学期成绩柱状对比</view><view class="chart-bars"><view wx:for="{{semesterChart.bars}}" wx:key="label" class="chart-col {{item.current ? 'current' : ''}}"><text class="chart-value">{{item.value}}</text><view class="chart-bar" style="height:{{item.height}}rpx"></view><text class="chart-label">{{item.label}}</text></view></view><view class="chart-caption {{semesterChart.deltaClass}}">{{semesterChart.caption}}</view></view>
+      <view class="exam-desc">假期里你好好休整了一番，精力大幅恢复。接下来是 {{nextSemesterName}}。</view><view class="exam-rule"><text>答对</text><text class="exam-points">{{semesterResult.correct}} / 5 题</text><text>超时</text><text class="exam-points">{{semesterResult.timeouts || 0}} 题</text></view><view class="exam-rule"><text>已完成学期</text><text class="exam-points">{{semester}} / 8</text><text>已解锁成就</text><text class="exam-points">{{achvCount}} / {{achvTotal}}</text></view><button class="primary-button" bindtap="nextSemester">进入{{nextSemesterName}} →</button><button class="text-button" bindtap="openAchievements">查看成就图鉴</button></view>
+
+    <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view>
+      <view class="semester-chart"><view class="chart-title">四年学期成绩对比</view><view class="chart-bars"><view wx:for="{{endingChart.bars}}" wx:key="label" class="chart-col {{item.current ? 'current' : ''}}"><text class="chart-value">{{item.value}}</text><view class="chart-bar" style="height:{{item.height}}rpx"></view><text class="chart-label">{{item.label}}</text></view></view><view class="chart-caption">{{endingChart.caption}}</view></view>
+      <view class="ending-text">{{ending.text}}</view><view class="ending-stats"><view wx:for="{{statsArray}}" wx:key="key"><text>{{item.name}}</text><text class="ending-value">{{item.value}}</text></view></view><view class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</view><view class="exam-rule"><text>已解锁成就</text><text class="exam-points">{{achvCount}} / {{achvTotal}}</text><text>全对场次</text><text class="exam-points">{{perfectExams}}</text></view><button class="primary-button" bindtap="restart">开启另一种人生</button></view>
   </view>
 </view>

@@ -1,10 +1,14 @@
 const { STAT_META, EVENTS, semesterLabel } = require('../../data/content');
-const { GameCore } = require('../../engine/core');
+const { ACHIEVEMENTS, buildAchievementList } = require('../../data/achievements');
+const { GameCore, EXAM_QUESTION_MS } = require('../../engine/core');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
 
+const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' } };
+const pad2 = value => String(value).padStart(2, '0');
+
 Page({
-  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '' },
+  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '', achvToasts: [], achvCount: 0, achvTotal: ACHIEVEMENTS.length, examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false },
 
   onLoad() {
     this.core = new GameCore(getApp().globalData.characterId);
@@ -29,8 +33,9 @@ Page({
     });
   },
 
-  onUnload() { this.stopped = true; },
-  onHide() { this.world && this.world.setInput(0, 0); },
+  onUnload() { this.stopped = true; this.stopExamTicker(); },
+  onHide() { this.world && this.world.setInput(0, 0); this.core && this.core.pauseExam && this.core.pauseExam(); },
+  onShow() { this.core && this.core.resumeExam && this.core.resumeExam(); },
 
   loop() {
     if (this.stopped || !this.renderer) return;
@@ -54,8 +59,42 @@ Page({
       statsArray, energy: this.core.energy, week: this.core.week, semester: this.core.semester,
       semesterName: this.core.semesterName, weekLabel: Math.min(this.core.week, this.core.weeksPerSemester),
       completed: this.core.completed, progress: this.core.totalProgress,
-      examReady: this.core.examReady
+      examReady: this.core.examReady,
+      achvCount: this.core.achievements.length, achvTotal: ACHIEVEMENTS.length,
+      perfectExams: this.core.perfectExams
     });
+  },
+
+  // ---- 成就全屏飘条（解锁队列 → 逐条弹出 → 自动收起）----
+  drainAchievements() {
+    const fresh = [];
+    let item;
+    while ((item = this.core.consumePendingAchievement())) {
+      const tier = TIER_META[item.tier] || TIER_META.bronze;
+      fresh.push({ id: item.id, icon: item.icon, name: item.name, desc: item.desc, tierLabel: tier.label, tierColor: tier.color });
+    }
+    if (!fresh.length) return;
+    this.setData({ achvToasts: this.data.achvToasts.concat(fresh) });
+    const ids = new Set(fresh.map(i => i.id));
+    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(i => !ids.has(i.id)) }), 3200);
+  },
+
+  openAchievements() {
+    const list = buildAchievementList(this.core.achievementSnapshot(), this.core.achievements).map(item => ({ ...item, tierLabel: (TIER_META[item.tier] || TIER_META.bronze).label, progress: Math.min(100, Math.round(item.current / item.target * 100)) }));
+    this.setData({ modal: 'achv', achvList: list, achvUnlocked: list.filter(i => i.unlocked).length });
+  },
+
+  // ---- 学期成绩柱状对比数据 ----
+  buildChartData(scores, highlightIndex, captionOverride) {
+    const bars = scores.map((score, i) => ({ value: score, height: Math.max(4, Math.round(score)), label: `S${i + 1}`, current: i === highlightIndex }));
+    let caption = '未来学期，继续成长', deltaClass = '';
+    if (captionOverride) caption = captionOverride;
+    else if (highlightIndex > 0) {
+      const delta = scores[highlightIndex] - scores[highlightIndex - 1];
+      caption = delta >= 0 ? `较上学期 +${delta} 分` : `较上学期 ${delta} 分`;
+      deltaClass = delta >= 0 ? 'up' : 'down';
+    }
+    return { bars, caption, deltaClass };
   },
 
   // 全屏场景插画绘制（弹窗打开后调用）
@@ -165,6 +204,7 @@ Page({
     const effects = Object.keys(result.applied).map(key => ({ key, name: key === 'energy' ? '精力' : STAT_META[key].name, value: result.applied[key] }));
     wx.setStorageSync('campus-progress', this.core.serialize());
     this.syncData();
+    this.drainAchievements();
     this.setData({ modal: 'reply', reply: result.reply, effects, replyKicker: isFinal ? '五轮问答完成 · 故事已收入图鉴' : `第 ${result.roundIndex + 1} / ${result.roundsLength} 轮问答已完成` });
   },
 
@@ -179,7 +219,7 @@ Page({
   },
 
   openGuide() { this.world.setInput(0, 0); this.setData({ modal: 'guide' }); },
-  closeModal() { this.setData({ modal: '' }); },
+  closeModal() { this.stopExamTicker(); this.setData({ modal: '' }); },
 
   showExamIntro() {
     this.world.setInput(0, 0);
@@ -188,24 +228,68 @@ Page({
   startExam() {
     const questions = this.core.startExam();
     if (!questions) return;
-    this.setData({ modal: 'exam', examQuestions: questions, examIndex: 0, currentQuestion: questions[0] });
+    this.showQuestion();
   },
+  showQuestion() {
+    const questions = this.core.currentExam || [];
+    const examIndex = this.core.examAnswers.length;
+    const q = questions[examIndex]; if (!q) return;
+    const t = this.core.tickExam();
+    const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+    this.setData({
+      modal: 'exam', examQuestions: questions, examIndex, currentQuestion: q,
+      examTimerText: `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`,
+      examTimerWidth: t.remaining / EXAM_QUESTION_MS * 100, examHurry: t.remaining <= 10000, examTimeoutFlash: false
+    });
+    this.startExamTicker();
+  },
+  // 每 100ms 刷新倒计时；耗尽时自动按错进入下一题
+  startExamTicker() {
+    this.stopExamTicker();
+    this.examTimeoutBusy = false;
+    this.examTicker = setInterval(() => {
+      if (this.data.modal !== 'exam') { this.stopExamTicker(); return; }
+      const t = this.core.tickExam();
+      const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+      this.setData({
+        examTimerText: `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`,
+        examTimerWidth: t.remaining / EXAM_QUESTION_MS * 100, examHurry: t.remaining <= 10000
+      });
+      if (t.timedOut && !this.examTimeoutBusy) {
+        this.examTimeoutBusy = true;
+        this.setData({ examTimeoutFlash: true });
+        setTimeout(() => {
+          const result = this.core.timeoutExamQuestion();
+          this.setData({ examTimeoutFlash: false });
+          if (result && result.finished) this.handleExamFinished();
+          else { this.showQuestion(); this.examTimeoutBusy = false; }
+        }, 700);
+      }
+    }, 100);
+  },
+  stopExamTicker() { if (this.examTicker) { clearInterval(this.examTicker); this.examTicker = null; } },
   answerExam(event) {
     if (this.answering) return;
     this.answering = true;
     this.core.answerExam(Number(event.currentTarget.dataset.index));
     setTimeout(() => {
       this.answering = false;
-      if (this.core.examAnswers.length >= this.core.currentExam.length) {
-        const outcome = this.core.finishExam();
-        this.syncData();
-        if (outcome && outcome.ending) this.setData({ modal: 'ending', ending: outcome.ending });
-        else if (outcome && outcome.semesterResult) this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName });
-      } else {
-        const examIndex = this.core.examAnswers.length;
-        this.setData({ examIndex, currentQuestion: this.core.currentExam[examIndex] });
-      }
+      if (this.core.examAnswers.length >= this.core.currentExam.length) this.handleExamFinished();
+      else this.showQuestion();
     }, 180);
+  },
+  handleExamFinished() {
+    this.stopExamTicker();
+    const outcome = this.core.finishExam();
+    this.syncData();
+    this.drainAchievements();
+    wx.setStorageSync('campus-progress', this.core.serialize());
+    if (outcome && outcome.ending) {
+      this.setData({ modal: 'ending', ending: outcome.ending, endingChart: this.buildChartData(outcome.ending.examScores, -1, `四年成长轨迹 · 毕业均分 ${outcome.ending.score}`) });
+    } else if (outcome && outcome.semesterResult) {
+      const scores = outcome.semesterResult.examScores || this.core.examScores;
+      this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName, semesterChart: this.buildChartData(scores, scores.length - 1) });
+    }
   },
   nextSemester() { this.setData({ modal: '' }); },
 

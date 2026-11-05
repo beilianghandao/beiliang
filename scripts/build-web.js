@@ -4,6 +4,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const modules = {
   content: 'miniprogram/data/content.js',
+  achievements: 'miniprogram/data/achievements.js',
   expansion: 'miniprogram/data/expansion.js',
   core: 'miniprogram/engine/core.js',
   renderer: 'miniprogram/engine/renderer.js',
@@ -14,6 +15,7 @@ output += 'window.CampusRequire = (() => {\nconst modules = {};\nconst cache = {
 Object.entries(modules).forEach(([id, file]) => {
   const source = fs.readFileSync(path.join(root, file), 'utf8')
     .replace(/require\(['"]\.\.\/data\/content['"]\)/g, "require('content')")
+    .replace(/require\(['"]\.\.\/data\/achievements['"]\)/g, "require('achievements')")
     .replace(/require\(['"]\.\/expansion['"]\)/g, "require('expansion')");
   output += `modules['${id}'] = function(module, exports, require) {\n${source}\n};\n`;
 });

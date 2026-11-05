@@ -16,3 +16,62 @@
 .portrait-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
 .speaker-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .profile-avatar img{width:100%;height:100%;border-radius:12px;object-fit:cover}
+
+/* ===== 成就全屏飘条 ===== */
+.achv-layer{position:fixed;z-index:40;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+.achv-toast{margin-top:16px;width:min(480px,92vw);background:#fffdf3f5;border:1px solid #d9c58a;border-radius:14px;box-shadow:0 18px 50px #1e2e21a0;overflow:hidden;animation:achv-in .55s cubic-bezier(.2,.9,.25,1.08) both}
+.achv-toast.achv-out{animation:achv-out .5s ease both}
+.achv-ribbon{padding:6px 18px;background:linear-gradient(90deg,#c49743,#e3c26f 55%,#c49743);color:#fffdf0}
+.achv-tag{font-size:10px;letter-spacing:3px}
+.achv-main{display:flex;align-items:center;gap:14px;padding:12px 18px}
+.achv-icon{flex:0 0 auto;width:46px;height:46px;border:2px solid;border-radius:50%;display:flex;align-items:center;justify-content:center;font:bold 24px serif;background:#fffef7}
+.achv-info{flex:1;min-width:0}
+.achv-info b{font-size:16px;color:#3c4f45}
+.achv-info small{display:block;color:#92978c;font-size:11px;margin-top:3px}
+.achv-tier{flex:0 0 auto;padding:4px 10px;border-radius:14px;color:#fffdf0;font-size:11px}
+@keyframes achv-in{from{transform:translateY(-150%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes achv-out{from{transform:translateY(0);opacity:1}to{transform:translateY(-150%);opacity:0}}
+
+/* ===== 学期成绩柱状对比 ===== */
+.semester-chart{margin:20px 0;padding:15px 17px;background:#f4f0e5;border-radius:13px}
+.chart-title{font-size:11px;color:#8b8c7e;letter-spacing:2px;text-align:left}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;height:118px;margin-top:10px}
+.chart-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;min-width:0}
+.chart-value{font-size:11px;color:#9b9989}
+.chart-col i{display:block;width:72%;max-width:26px;background:linear-gradient(180deg,#9db98a,#7d9275);border-radius:4px 4px 0 0;transition:height .4s}
+.chart-col.current i{background:linear-gradient(180deg,#e3c26f,#c49743)}
+.chart-label{font-size:10px;color:#a1a195}
+.chart-caption{text-align:center;font-size:11px;color:#8b8c7e;margin-top:10px}
+.chart-caption b.up{color:#63815e}.chart-caption b.down{color:#b37962}
+
+/* ===== 期末考倒计时 ===== */
+.exam-timer-row{display:flex;align-items:center;gap:12px;margin:0 0 20px;padding:11px 14px;background:#f4f0e5;border-radius:12px}
+.exam-timer-label{font-size:12px;color:#8b8c7e;white-space:nowrap}
+.exam-timer-num{font:bold 21px "Courier New",monospace;color:#8f7447;min-width:62px;text-align:center}
+.exam-timer-track{flex:1;height:6px;background:#ebe8dc;border-radius:4px;overflow:hidden}
+.exam-timer-track i{display:block;height:100%;background:linear-gradient(90deg,#d7b569,#e9cb7d);transition:width .12s linear}
+.exam-hurry .exam-timer-num{color:#b3543d;animation:achv-pulse 1s infinite}
+.exam-hurry .exam-timer-track i{background:#c96b4f}
+@keyframes achv-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.exam-timeout-flash .exam-question{animation:achv-shake .5s;color:#b3543d}
+@keyframes achv-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.timer-rule{margin-top:-12px}
+
+/* ===== 成就图鉴面板 ===== */
+.achv-count{font-size:10px;color:#d4c792;letter-spacing:1px;margin-top:8px}
+.achv-summary{display:flex;align-items:center;gap:12px;margin:2px 0 18px}
+.achv-summary-bar{flex:1;height:5px;background:#ebe8dc;border-radius:4px;overflow:hidden}
+.achv-summary-bar i{display:block;height:100%;background:linear-gradient(90deg,#c49743,#e3c26f)}
+.achv-summary span{font-size:12px;color:#8b8c7e;white-space:nowrap}
+.achv-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;text-align:left;max-height:54vh;overflow-y:auto;padding-right:2px}
+.achv-cell{display:flex;gap:11px;padding:12px;background:#f6f2e8;border:1px solid #e9e2d2;border-radius:12px;opacity:.62}
+.achv-cell.on{opacity:1;background:#f3f1e3;border-color:#d8c58a}
+.achv-cell-icon{flex:0 0 auto;width:38px;height:38px;border:2px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font:bold 19px serif;background:#fffef7}
+.achv-cell-body{flex:1;min-width:0}
+.achv-cell-body b{font-size:14px;color:#43564b;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.achv-cell-body b small{color:#9a896e;font-size:10px;font-weight:400;white-space:nowrap}
+.achv-cell-body p{margin:4px 0 0;font-size:11px;color:#7e867c;line-height:1.5}
+.achv-cell-bar{height:4px;background:#e6e1d2;border-radius:3px;margin-top:7px;overflow:hidden}
+.achv-cell-bar i{display:block;height:100%;background:#9db98a}
+.achv-cell.on .achv-cell-bar i{background:#c49743}
+@media(max-width:760px){.achv-grid{grid-template-columns:1fr}.achv-toast{margin-top:12px}.exam-timer-num{font-size:18px;min-width:54px}}

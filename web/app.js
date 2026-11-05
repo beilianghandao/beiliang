@@ -1,5 +1,6 @@
 const { CHARACTERS, STAT_META, EVENTS, NPCS, ENDINGS, getExamQuestions, semesterLabel } = CampusRequire('content');
-const { GameCore } = CampusRequire('core');
+const { ACHIEVEMENTS, buildAchievementList } = CampusRequire('achievements');
+const { GameCore, EXAM_QUESTION_MS } = CampusRequire('core');
 const { CampusRenderer, drawSceneArt, preloadStandees } = CampusRequire('renderer');
 const { CampusWorld } = CampusRequire('world');
 
@@ -82,7 +83,70 @@ function updateHUD() {
   $('#quest-bar').style.width = `${core.totalProgress}%`;
   $('#quest-count').textContent = `已完成 ${core.completed.length} / ${TOTAL_STORIES} 段故事`;
   $('#quest-percent').textContent = `第 ${core.semester} / 8 学期`;
+  $('#achv-count').textContent = `已解锁成就 ${core.achievements.length} / ${ACHIEVEMENTS.length}`;
   $('#exam-button').classList.toggle('hidden', !core.examReady);
+}
+
+// ---- 成就全屏飘条 ----
+const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' } };
+
+function drainAchievements() {
+  let item;
+  while ((item = core.consumePendingAchievement())) {
+    const tier = TIER_META[item.tier] || TIER_META.bronze;
+    const toast = document.createElement('div');
+    toast.className = 'achv-toast';
+    toast.innerHTML = `<div class="achv-ribbon"><span class="achv-tag">ACHIEVEMENT UNLOCKED</span></div>
+      <div class="achv-main"><span class="achv-icon" style="color:${tier.color};border-color:${tier.color}">${item.icon}</span><div class="achv-info"><b>${item.name}</b><small>${item.desc}</small></div><span class="achv-tier" style="background:${tier.color}">${tier.label}级成就</span></div>`;
+    $('#achv-layer').appendChild(toast);
+    setTimeout(() => { toast.classList.add('achv-out'); setTimeout(() => toast.remove(), 500); }, 2800);
+  }
+}
+
+// ---- 学期成绩柱状对比 ----
+function semesterChartHTML(scores, highlightIndex = -1, captionOverride = '') {
+  const bars = scores.map((score, i) => `<div class="chart-col ${i === highlightIndex ? 'current' : ''}"><span class="chart-value">${scores[i]}</span><i style="height:${Math.max(4, Math.round(scores[i]))}px"></i><span class="chart-label">S${i + 1}</span></div>`).join('');
+  let caption = '未来学期，继续成长';
+  if (captionOverride) caption = captionOverride;
+  else if (highlightIndex > 0) {
+    const delta = scores[highlightIndex] - scores[highlightIndex - 1];
+    caption = delta >= 0 ? `较上学期 <b class="up">+${delta}</b> 分` : `较上学期 <b class="down">${delta}</b> 分`;
+  }
+  return `<div class="semester-chart"><div class="chart-title">学期成绩柱状对比</div><div class="chart-bars">${bars}</div><div class="chart-caption">${caption}</div></div>`;
+}
+
+// ---- 期末考倒计时 ----
+let examTicker = null, examTimeoutBusy = false;
+function startExamTicker() {
+  stopExamTicker(); examTimeoutBusy = false;
+  examTicker = setInterval(() => {
+    if (modal !== 'exam') { stopExamTicker(); return; }
+    const t = core.tickExam();
+    const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+    const digits = $('#exam-timer'); if (!digits) return;
+    digits.textContent = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+    const card = digits.closest('.exam-panel-wrap');
+    if (card) card.classList.toggle('exam-hurry', t.remaining <= 10000);
+    const bar = $('#exam-timer-bar'); if (bar) bar.style.width = `${t.remaining / EXAM_QUESTION_MS * 100}%`;
+    if (t.timedOut && !examTimeoutBusy) {
+      examTimeoutBusy = true;
+      if (card) card.classList.add('exam-timeout-flash');
+      const note = $('#exam-note'); if (note) note.textContent = '时间到 · 本题按错处理，自动进入下一题';
+      setTimeout(() => {
+        const result = core.timeoutExamQuestion();
+        if (result && result.finished) handleExamFinished();
+        else { showQuestion(); examTimeoutBusy = false; }
+      }, 700);
+    }
+  }, 100);
+}
+function stopExamTicker() { if (examTicker) clearInterval(examTicker); examTicker = null; }
+
+function handleExamFinished() {
+  stopExamTicker();
+  const outcome = core.finishExam(); updateHUD(); drainAchievements();
+  if (outcome && outcome.ending) showEnding(outcome.ending);
+  else if (outcome && outcome.semesterResult) showSemesterResult(outcome.semesterResult);
 }
 
 function updateNearby(nearby) {
@@ -102,7 +166,7 @@ function openModal(name, html, mode = '') {
   modalMask.classList.toggle('story-mask', mode === 'story');
   modalMask.classList.toggle('scene-mode', mode === 'scene');
 }
-function closeModal() { modal = ''; stopArt(); modalMask.classList.add('hidden'); modalContent.innerHTML = ''; }
+function closeModal() { modal = ''; stopArt(); stopExamTicker(); modalMask.classList.add('hidden'); modalContent.innerHTML = ''; }
 
 function stopArt() { if (artLoop) cancelAnimationFrame(artLoop); artLoop = null; }
 function startArt(canvasEl, art) {
@@ -176,30 +240,43 @@ function showGuide() {
     ['四年八学期','8 个学期覆盖完整大学四年。每学期 8 周行动 + 1 次期末考；每个场景有多轮剧情问答，可在不同学期持续探索。'],
     ['自由探索','使用 WASD / 方向键，或直接点击地面寻路。走近建筑入口与 NPC 后，点击提示卡片进入场景。'],
     ['做出选择',`${TOTAL_STORIES} 段故事均包含至少 5 轮连续问答；最终选择完成任务。重复完成仍有收益，但属性成长会递减。`],
+    ['收集成就',`${ACHIEVEMENTS.length} 项成就等待解锁：完成故事、提升属性、考试全对……解锁时会有全屏飘条提示，结算页还能回看学期成绩柱状对比。`],
     ['照顾自己','行动消耗精力，每周恢复 10 点（江野 +8）。精力过低会影响心态，期末后假期会大幅恢复。'],
-    ['迎接毕业',`每学期期末考由 5 道情境题 + 日常成长计分。毕业时综合五项属性、属性组合和四年均分，走向 ${ENDINGS.length} 种不同结局之一。`]
+    ['迎接毕业',`每学期期末考由 5 道限时情境题（每题 30 秒，超时按错处理，切后台自动暂停）+ 日常成长计分。毕业时综合五项属性、属性组合和四年均分，走向 ${ENDINGS.length} 种不同结局之一。`]
   ];
-  openModal('guide', `<article class="small-panel"><button class="panel-close" data-action="close">×</button><div class="panel-kicker">NEW STUDENT HANDBOOK</div><h2 class="panel-title">新生校园指南</h2>${items.map((item, i) => `<div class="guide-item"><span>0${i + 1}</span><div><b>${item[0]}</b><p>${item[1]}</p></div></div>`).join('')}<button class="secondary-button" data-action="close">我准备好了</button><button class="text-button" data-action="restart">重新选择角色</button></article>`);
+  openModal('guide', `<article class="small-panel"><button class="panel-close" data-action="close">×</button><div class="panel-kicker">NEW STUDENT HANDBOOK</div><h2 class="panel-title">新生校园指南</h2>${items.map((item, i) => `<div class="guide-item"><span>0${i + 1}</span><div><b>${item[0]}</b><p>${item[1]}</p></div></div>`).join('')}<button class="secondary-button" data-action="achv">成就图鉴</button><button class="secondary-button" data-action="close">我准备好了</button><button class="text-button" data-action="restart">重新选择角色</button></article>`);
 }
 
 function showExamIntro() {
-  openModal('examIntro', `<article class="small-panel"><div class="exam-emblem">末</div><div class="panel-kicker">FINAL EXAMINATION</div><h2 class="panel-title">${core.semesterName} · 期末考试</h2><p class="exam-desc">${core.semester < 8 ? '一学期的探索与选择，都将成为此刻的底气。' : '这是大学生涯的最后一场考试。'}共 5 道情境题，日常学识与实践也会影响成绩。</p><div class="exam-rule"><span>答题正确</span><b>50 分</b><span>日常成长</span><b>50 分</b></div><button class="primary-button" data-action="start-exam">开始作答</button></article>`);
+  openModal('examIntro', `<article class="small-panel"><div class="exam-emblem">末</div><div class="panel-kicker">FINAL EXAMINATION</div><h2 class="panel-title">${core.semesterName} · 期末考试</h2><p class="exam-desc">${core.semester < 8 ? '一学期的探索与选择，都将成为此刻的底气。' : '这是大学生涯的最后一场考试。'}共 5 道情境题，日常学识与实践也会影响成绩。</p><div class="exam-rule"><span>答题正确</span><b>50 分</b><span>日常成长</span><b>50 分</b></div><div class="exam-rule timer-rule"><span>每题限时</span><b>30 秒</b><span>超时</span><b>按错处理</b></div><button class="primary-button" data-action="start-exam">开始作答</button></article>`);
 }
 
 function showQuestion() {
   const questions = core.currentExam || [];
   const index = core.examAnswers.length;
   const q = questions[index]; if (!q) return showExamIntro();
-  openModal('exam', `<article class="small-panel"><div class="exam-progress-head"><span>第 ${core.semester} 学期期末考</span><span>${index + 1} / ${questions.length}</span></div><div class="exam-progress-track"><i style="width:${(index + 1) / questions.length * 100}%"></i></div><div class="exam-question">${q.question}</div><div class="exam-options">${q.options.map((option, i) => `<button data-answer="${i}"><span>${option}</span><span>›</span></button>`).join('')}</div><div class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</div></article>`);
+  const t = core.tickExam();
+  const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+  openModal('exam', `<article class="small-panel exam-panel-wrap"><div class="exam-progress-head"><span>第 ${core.semester} 学期期末考</span><span>${index + 1} / ${questions.length}</span></div><div class="exam-progress-track"><i style="width:${(index + 1) / questions.length * 100}%"></i></div><div class="exam-timer-row"><span class="exam-timer-label">⏱ 本题限时</span><div class="exam-timer-num" id="exam-timer">${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}</div><div class="exam-timer-track"><i id="exam-timer-bar" style="width:${t.remaining / EXAM_QUESTION_MS * 100}%"></i></div></div><div class="exam-question">${q.question}</div><div class="exam-options">${q.options.map((option, i) => `<button data-answer="${i}"><span>${option}</span><span>›</span></button>`).join('')}</div><div class="exam-note" id="exam-note">切后台会暂停计时；超时未作答按错处理</div></article>`);
+  startExamTicker();
 }
 
 function showSemesterResult(result) {
-  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div><p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>累计学期</span><b>${core.examScores.length} / 8</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button></article>`);
+  const scores = result.examScores || core.examScores;
+  const chart = semesterChartHTML(scores, scores.length - 1);
+  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div>${chart}<p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>超时</span><b>${result.timeouts || 0} 题</b></div><div class="exam-rule"><span>累计学期</span><b>${core.examScores.length} / 8</b><span>已解锁成就</span><b>${core.achievements.length} / ${ACHIEVEMENTS.length}</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button><button class="text-button" data-action="achv">查看成就图鉴</button></article>`);
 }
 
 function showEnding(ending) {
   const endingNumber = ENDINGS.findIndex(item => item.id === ending.id) + 1;
-  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 第 ${endingNumber} / ${ENDINGS.length} 种毕业结局</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div><p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta]) => `<span>${meta.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><button class="primary-button" data-action="restart">开启另一种人生</button></article>`);
+  const chart = semesterChartHTML(ending.examScores, -1, `四年成长轨迹 · 毕业均分 ${ending.score}`);
+  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 第 ${endingNumber} / ${ENDINGS.length} 种毕业结局</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div>${chart}<p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta]) => `<span>${meta.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><div class="exam-rule"><span>已解锁成就</span><b>${core.achievements.length} / ${ACHIEVEMENTS.length}</b><span>全对场次</span><b>${core.perfectExams}</b></div><button class="primary-button" data-action="restart">开启另一种人生</button></article>`);
+}
+
+function showAchievements() {
+  const list = buildAchievementList(core.achievementSnapshot(), core.achievements);
+  const unlocked = list.filter(item => item.unlocked).length;
+  openModal('achv', `<article class="small-panel achv-panel"><button class="panel-close" data-action="close">×</button><div class="panel-kicker">ACHIEVEMENT COLLECTION</div><h2 class="panel-title">成就图鉴</h2><div class="achv-summary"><div class="achv-summary-bar"><i style="width:${unlocked / list.length * 100}%"></i></div><span>${unlocked} / ${list.length} 已解锁</span></div><div class="achv-grid">${list.map(item => `<div class="achv-cell ${item.unlocked ? 'on' : ''}"><span class="achv-cell-icon" style="color:${item.catColor}">${item.icon}</span><div class="achv-cell-body"><b>${item.name}<small>${item.catName} · ${TIER_META[item.tier].label}级</small></b><p>${item.desc}</p><div class="achv-cell-bar"><i style="width:${Math.min(100, Math.round(item.current / item.target * 100))}%"></i></div></div></div>`).join('')}</div><button class="secondary-button" data-action="close">返回</button></article>`);
 }
 
 function interact() {
@@ -229,11 +306,11 @@ modalContent.addEventListener('click', event => {
     if (!isFinal) {
       const progressResult = core.applyDialogueChoice(sceneId, questIndex, dialogueRound, Number(choice.dataset.choice));
       if (!progressResult) return;
-      updateHUD(); showDialogueReply(progressResult); return;
+      updateHUD(); drainAchievements(); showDialogueReply(progressResult); return;
     }
     const result = core.applyChoice(sceneId, questIndex, Number(choice.dataset.choice)); if (!result) return;
     const effects = Object.entries(result.applied).map(([key, value]) => `<span class="effect-item ${value >= 0 ? 'positive' : 'negative'}">${key === 'energy' ? '精力' : STAT_META[key].name} ${value >= 0 ? '+' : ''}${value}</span>`).join('');
-    updateHUD(); dialogueRound = 0;
+    updateHUD(); drainAchievements(); dialogueRound = 0;
     const scene = EVENTS[sceneId];
     openModal('reply', `${artCanvas(scene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">五轮问答完成 · 故事已收入图鉴</div><h2 class="reply-title">${scene.quests[questIndex].title}</h2><p class="reply-text">${result.reply}</p><div class="effect-list">${effects}</div><button class="primary-button" data-action="continue">继续校园生活 →</button></article>`, 'scene');
     startArt($('#scene-full-art'), scene.art); return;
@@ -241,19 +318,23 @@ modalContent.addEventListener('click', event => {
   const answer = event.target.closest('[data-answer]');
   if (answer) {
     core.answerExam(Number(answer.dataset.answer));
-    if (core.examAnswers.length >= core.currentExam.length) {
-      const outcome = core.finishExam(); updateHUD();
-      if (outcome && outcome.ending) showEnding(outcome.ending);
-      else if (outcome && outcome.semesterResult) showSemesterResult(outcome.semesterResult);
-    } else showQuestion(); return;
+    if (core.examAnswers.length >= core.currentExam.length) handleExamFinished();
+    else showQuestion();
+    return;
   }
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (action === 'close') { closeModal(); updateHUD(); }
   if (action === 'continue') { core.examReady ? showExamIntro() : closeModal(); }
   if (action === 'next-round') { dialogueRound += 1; renderDialogueRound(); }
   if (action === 'start-exam') { core.startExam(); showQuestion(); }
+  if (action === 'achv') showAchievements();
   if (action === 'restart') location.reload();
 });
+
+// 考试倒计时：切后台/失焦暂停，回到前台恢复
+document.addEventListener('visibilitychange', () => { if (!core || !core.examTimer) return; document.hidden ? core.pauseExam() : core.resumeExam(); });
+window.addEventListener('blur', () => { if (core && core.examTimer) core.pauseExam(); });
+window.addEventListener('focus', () => { if (core && core.examTimer) core.resumeExam(); });
 
 window.addEventListener('keydown', event => {
   if (!world || modal) return;

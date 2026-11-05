@@ -1,6 +1,7 @@
 const assert = require('assert');
 const { CHARACTERS, EVENTS, STAT_META, ENDINGS, ENDING_RULES, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
-const { GameCore } = require('../miniprogram/engine/core');
+const { ACHIEVEMENTS, buildAchievementList } = require('../miniprogram/data/achievements');
+const { GameCore, EXAM_QUESTION_MS } = require('../miniprogram/engine/core');
 const { CampusWorld } = require('../miniprogram/engine/world');
 
 let passed = 0;
@@ -186,6 +187,119 @@ test('世界边界和建筑碰撞可阻挡人物，移动更新会改变位置',
   assert.strictEqual(world.collides(1000, 800), false);
   world.setInput(1, 0); world.update(300);
   assert.ok(world.player.x > 1370);
+});
+
+// ---- 成就系统（用户故事 4：ACHV + 飘条 + 结算页柱状对比）----
+
+test('成就 id 唯一、描述完整且判定函数均为纯函数', () => {
+  assert.strictEqual(new Set(ACHIEVEMENTS.map(a => a.id)).size, ACHIEVEMENTS.length);
+  ACHIEVEMENTS.forEach(a => {
+    assert.ok(a.icon && a.name && a.desc, a.id);
+    assert.ok(['bronze', 'silver', 'gold'].includes(a.tier), a.id);
+    assert.strictEqual(typeof a.check, 'function', a.id);
+    assert.strictEqual(typeof a.progress, 'function', a.id);
+  });
+});
+
+test('完成首段故事解锁「初次启程」，重复行动不会重复解锁', () => {
+  const game = new GameCore('lin');
+  assert.strictEqual(game.achievements.length, 0);
+  game.applyChoice('library', 0, 0);
+  assert.ok(game.achievements.includes('first-story'));
+  assert.strictEqual(game.pendingAchievements.length, game.achievements.length);
+  game.applyChoice('library', 1, 0);
+  assert.strictEqual(game.achievements.filter(id => id === 'first-story').length, 1);
+  const toast = game.consumePendingAchievement();
+  assert.ok(toast && toast.icon && toast.name);
+});
+
+test('成就判定基于快照：属性与精力达标即可解锁并进入飘条队列', () => {
+  const game = new GameCore('chen');
+  game.stats.knowledge = 85;
+  game.energy = 100;
+  const fresh = game.checkAchievements();
+  assert.ok(fresh.some(a => a.id === 'stat-knowledge'));
+  assert.ok(fresh.some(a => a.id === 'full-energy'));
+  assert.strictEqual(game.pendingAchievements.length, fresh.length);
+  const list = buildAchievementList(game.achievementSnapshot(), game.achievements);
+  assert.strictEqual(list.length, ACHIEVEMENTS.length);
+  assert.ok(list.find(item => item.id === 'stat-knowledge').unlocked);
+});
+
+test('期末考全对解锁「全对答卷」与「从容应考」', () => {
+  const game = new GameCore('chen');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  const questions = game.startExam();
+  questions.forEach(q => game.answerExam(q.answer));
+  const outcome = game.finishExam();
+  assert.ok(outcome.semesterResult);
+  assert.ok(game.achievements.includes('exam-perfect'));
+  assert.ok(game.achievements.includes('exam-no-timeout'));
+  assert.strictEqual(game.calmExams, 1);
+});
+
+test('毕业时解锁「顺利毕业」并把成就进度写入存档', () => {
+  const game = new GameCore('chen');
+  for (let semester = 1; semester <= 8; semester++) {
+    while (!game.examReady) game.applyChoice('library', 0, 0);
+    const questions = game.startExam();
+    questions.forEach(q => game.answerExam(q.answer));
+    game.finishExam();
+  }
+  assert.ok(game.achievements.includes('graduate'));
+  assert.ok(game.pendingAchievements.includes('graduate'));
+  const saved = game.serialize();
+  assert.ok(Array.isArray(saved.achievements) && saved.achievements.includes('graduate'));
+  assert.ok(Array.isArray(saved.achievementLog));
+});
+
+// ---- 期末考倒计时（用户故事 3：限时答题，超时按错算）----
+
+test('倒计时耗尽后：作答与自动超时都按错记录并推进题目', () => {
+  const game = new GameCore('lin');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  const questions = game.startExam();
+  assert.strictEqual(game.examTimer.remaining, EXAM_QUESTION_MS);
+
+  const state = game.tickExam(Date.now() + EXAM_QUESTION_MS + 1000);
+  assert.ok(state.timedOut);
+
+  // 超时后点击选项：同样按超时判错
+  const late = game.answerExam(questions[0].answer, Date.now() + EXAM_QUESTION_MS + 2000);
+  assert.ok(late.timedOut);
+  assert.strictEqual(game.examAnswers[0], -1);
+  assert.strictEqual(game.examTimeouts, 1);
+
+  questions.slice(1).forEach(q => game.answerExam(q.answer));
+  const outcome = game.finishExam();
+  assert.strictEqual(outcome.semesterResult.correct, 4);
+  assert.strictEqual(outcome.semesterResult.timeouts, 1);
+  assert.strictEqual(game.calmExams, 0);
+  assert.ok(outcome.semesterResult.examScores.length === 1);
+});
+
+test('切后台暂停计时：暂停期间倒计时不再流逝，恢复后继续', () => {
+  const game = new GameCore('lin');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  game.startExam();
+  const pausedAt = Date.now();
+  game.pauseExam(pausedAt); // 模拟 onHide
+  const frozen = game.tickExam(pausedAt + 60000);
+  assert.ok(!frozen.running);
+  assert.ok(frozen.remaining > EXAM_QUESTION_MS - 1000, '暂停期间倒计时不应该流逝');
+
+  game.resumeExam(pausedAt + 60000); // 模拟 onShow
+  const resumed = game.tickExam(pausedAt + 60000 + 5000);
+  assert.ok(Math.abs(resumed.remaining - (EXAM_QUESTION_MS - 5000)) < 500);
+});
+
+test('每题作答后倒计时重置为完整时长', () => {
+  const game = new GameCore('lin');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  const questions = game.startExam();
+  game.answerExam(questions[0].answer);
+  assert.strictEqual(game.examTimer.remaining, EXAM_QUESTION_MS);
+  assert.strictEqual(game.examAnswers.length, 1);
 });
 
 console.log(`\nAll ${passed} gameplay tests passed.`);

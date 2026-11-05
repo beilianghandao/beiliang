@@ -43,3 +43,59 @@
 .modal-mask.scene-mode{background:transparent;backdrop-filter:none}
 .scene-full-art{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1}
 .scene-mode .story-panel,.scene-mode .reply-panel{position:relative;z-index:2;margin:auto;box-shadow:0 30rpx 90rpx rgba(10,18,26,.5)}
+
+/* ===== 成就全屏飘条 ===== */
+.achv-layer { position: fixed; z-index: 40; top: calc(env(safe-area-inset-top) + 20rpx); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 14rpx; pointer-events: none; }
+.achv-toast { width: 640rpx; max-width: calc(100vw - 40rpx); background: rgba(255,253,243,.97); border: 1rpx solid #d9c58a; border-radius: 18rpx; box-shadow: 0 24rpx 70rpx rgba(30,46,33,.45); overflow: hidden; animation: achv-in .55s cubic-bezier(.2,.9,.25,1.08) both; }
+.achv-ribbon { padding: 10rpx 24rpx; background: linear-gradient(90deg,#c49743,#e3c26f 55%,#c49743); color: #fffdf0; }
+.achv-tag { font-size: 17rpx; letter-spacing: 5rpx; }
+.achv-main { display: flex; align-items: center; gap: 20rpx; padding: 18rpx 24rpx; }
+.achv-icon { flex: 0 0 auto; width: 64rpx; height: 64rpx; border: 3rpx solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: bold 33rpx serif; background: #fffef7; }
+.achv-info { flex: 1; min-width: 0; }
+.achv-name { font-size: 26rpx; font-weight: 600; color: #3c4f45; }
+.achv-desc { font-size: 19rpx; color: #92978c; margin-top: 5rpx; }
+.achv-tier { flex: 0 0 auto; padding: 7rpx 16rpx; border-radius: 20rpx; color: #fffdf0; font-size: 18rpx; }
+@keyframes achv-in { from { transform: translateY(-150%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ===== 学期成绩柱状对比 ===== */
+.semester-chart { margin: 24rpx 0; padding: 22rpx 26rpx; background: #f4f0e5; border-radius: 18rpx; }
+.chart-title { font-size: 18rpx; color: #8b8c7e; letter-spacing: 3rpx; text-align: left; }
+.chart-bars { display: flex; align-items: flex-end; gap: 14rpx; height: 168rpx; margin-top: 14rpx; }
+.chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8rpx; min-width: 0; }
+.chart-value { font-size: 18rpx; color: #9b9989; }
+.chart-bar { display: block; width: 72%; max-width: 40rpx; background: linear-gradient(180deg,#9db98a,#7d9275); border-radius: 6rpx 6rpx 0 0; }
+.chart-col.current .chart-bar { background: linear-gradient(180deg,#e3c26f,#c49743); }
+.chart-label { font-size: 17rpx; color: #a1a195; }
+.chart-caption { text-align: center; font-size: 19rpx; color: #8b8c7e; margin-top: 14rpx; }
+.chart-caption.up { color: #63815e; }
+.chart-caption.down { color: #b37962; }
+
+/* ===== 期末考倒计时 ===== */
+.exam-timer-row { display: flex; align-items: center; gap: 18rpx; margin: 0 0 28rpx; padding: 16rpx 20rpx; background: #f4f0e5; border-radius: 16rpx; }
+.exam-timer-label { font-size: 20rpx; color: #8b8c7e; white-space: nowrap; }
+.exam-timer-num { font: bold 30rpx "Courier New",monospace; color: #8f7447; min-width: 92rpx; text-align: center; }
+.exam-timer-track { flex: 1; height: 9rpx; background: #ebe8dc; border-radius: 6rpx; overflow: hidden; }
+.exam-timer-track view { height: 100%; background: linear-gradient(90deg,#d7b569,#e9cb7d); transition: width .12s linear; }
+.exam-hurry .exam-timer-num { color: #b3543d; animation: achv-pulse 1s infinite; }
+.exam-hurry .exam-timer-track view { background: #c96b4f; }
+@keyframes achv-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.exam-timeout-flash .exam-question { animation: achv-shake .5s; color: #b3543d; }
+@keyframes achv-shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-10rpx); } 40% { transform: translateX(10rpx); } 60% { transform: translateX(-6rpx); } 80% { transform: translateX(6rpx); } }
+
+/* ===== 成就图鉴面板 ===== */
+.achv-count { font-size: 17rpx; color: #d4c792; letter-spacing: 2rpx; margin-top: 12rpx; }
+.achv-summary { display: flex; align-items: center; gap: 18rpx; margin: 4rpx 0 24rpx; }
+.achv-summary-bar { flex: 1; height: 8rpx; background: #ebe8dc; border-radius: 6rpx; overflow: hidden; }
+.achv-summary-bar view { height: 100%; background: linear-gradient(90deg,#c49743,#e3c26f); }
+.achv-summary text { font-size: 20rpx; color: #8b8c7e; white-space: nowrap; }
+.achv-grid { max-height: 700rpx; }
+.achv-cell { display: flex; gap: 18rpx; padding: 20rpx; background: #f6f2e8; border: 1rpx solid #e9e2d2; border-radius: 16rpx; opacity: .62; margin-bottom: 16rpx; }
+.achv-cell.on { opacity: 1; background: #f3f1e3; border-color: #d8c58a; }
+.achv-cell-icon { flex: 0 0 auto; width: 56rpx; height: 56rpx; border: 3rpx solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: bold 28rpx serif; background: #fffef7; }
+.achv-cell-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.achv-cell-name { font-size: 24rpx; font-weight: 600; color: #43564b; display: flex; justify-content: space-between; align-items: baseline; gap: 10rpx; }
+.achv-cell-cat { color: #9a896e; font-size: 17rpx; font-weight: 400; white-space: nowrap; }
+.achv-cell-desc { font-size: 19rpx; color: #7e867c; line-height: 1.5; margin-top: 6rpx; }
+.achv-cell-bar { height: 6rpx; background: #e6e1d2; border-radius: 5rpx; margin-top: 12rpx; overflow: hidden; }
+.achv-cell-bar view { height: 100%; background: #9db98a; }
+.achv-cell.on .achv-cell-bar view { background: #c49743; }
