@@ -139,3 +139,53 @@
 .achv-chip { display: flex; align-items: center; gap: 10rpx; padding: 10rpx 20rpx; border-radius: 24rpx; background: #fffdf3; border: 1rpx solid #e5d8b0; font-size: 21rpx; color: #43564b; animation: achv-pop-in .5s cubic-bezier(.2,.9,.3,1.2) both; }
 .achv-chip.tier-gold { border-color: #d8b45c; box-shadow: 0 0 20rpx rgba(196,151,67,.16); }
 .achv-chip-icon { font: bold 22rpx serif; }
+
+/* ===== 隐藏成就：虹光飘条 + 虹光闪屏 + 彩色粒子 ===== */
+.achv-toast.tier-hidden { background: linear-gradient(135deg,#2a1f45,#3a2a5c); border-color: #b79bff; box-shadow: 0 30rpx 90rpx rgba(27,18,51,.8), 0 0 90rpx rgba(138,107,209,.45), 0 0 160rpx rgba(201,155,255,.3); animation: secret-in .8s cubic-bezier(.2,.9,.25,1.12) both; }
+.achv-toast.tier-hidden .achv-ribbon { background: linear-gradient(100deg,#ff7ea8,#ffd76e,#7ef0c4,#7ec8ff,#c99bff,#ff7ea8); background-size: 300% 100%; animation: secret-ribbon-flow 3.2s linear infinite; }
+.achv-toast.tier-hidden .achv-tag, .achv-toast.tier-hidden .achv-ribbon-title { color: #2a1d44; }
+.achv-toast.tier-hidden .achv-name { color: #fff5d6; }
+.achv-toast.tier-hidden .achv-desc { color: #c9bde8; }
+.achv-toast.tier-hidden .achv-icon { color: #7a4d0a !important; border-color: #e6cf7a !important; background: radial-gradient(circle at 50% 35%,#fff8dc,#f0dda6); box-shadow: 0 0 0 10rpx rgba(255,255,255,.14), 0 0 50rpx rgba(255,215,110,.55); animation: secret-icon 1.4s ease-in-out infinite; }
+.achv-toast.tier-hidden .achv-tier { background: linear-gradient(90deg,#ffe08a,#e3bd63) !important; color: #3a2a10 !important; font-weight: 700; }
+.secret-rays { position: absolute; left: 50%; top: 60rpx; width: 520rpx; height: 520rpx; margin-left: -260rpx; border-radius: 50%; opacity: .22; pointer-events: none; background: conic-gradient(from 0deg, rgba(255,215,110,0) 0deg, rgba(255,215,110,.55) 7deg, rgba(255,215,110,0) 15deg, rgba(255,126,168,.55) 38deg, rgba(255,126,168,0) 46deg, rgba(126,200,255,.55) 78deg, rgba(126,200,255,0) 86deg, rgba(126,240,196,.55) 118deg, rgba(126,240,196,0) 126deg, rgba(201,155,255,.55) 158deg, rgba(201,155,255,0) 166deg, rgba(255,215,110,.55) 198deg, rgba(255,215,110,0) 206deg, rgba(255,126,168,.55) 238deg, rgba(255,126,168,0) 246deg, rgba(126,200,255,.55) 278deg, rgba(126,200,255,0) 286deg, rgba(126,240,196,.55) 318deg, rgba(126,240,196,0) 326deg, rgba(201,155,255,.55) 350deg, rgba(201,155,255,0) 360deg); animation: secret-rays-spin 7s linear infinite; }
+.confetti.secret-bit { width: 14rpx; height: 14rpx; border-radius: 50%; }
+.confetti.secret-bit.s1 { --cx: -320rpx; --cy: 150rpx; background: #ffd76e; }
+.confetti.secret-bit.s2 { --cx: -270rpx; --cy: 240rpx; background: #ff9f6e; }
+.confetti.secret-bit.s3 { --cx: -220rpx; --cy: 130rpx; background: #ff7ea8; }
+.confetti.secret-bit.s4 { --cx: -170rpx; --cy: 290rpx; background: #c99bff; }
+.confetti.secret-bit.s5 { --cx: -120rpx; --cy: 200rpx; background: #7ec8ff; }
+.confetti.secret-bit.s6 { --cx: -70rpx; --cy: 320rpx; background: #7ef0c4; }
+.confetti.secret-bit.s7 { --cx: -20rpx; --cy: 160rpx; background: #e9ff8a; }
+.confetti.secret-bit.s8 { --cx: 30rpx; --cy: 280rpx; background: #ffd76e; }
+.confetti.secret-bit.s9 { --cx: 80rpx; --cy: 190rpx; background: #ff7ea8; }
+.confetti.secret-bit.s10 { --cx: 130rpx; --cy: 310rpx; background: #7ec8ff; }
+.confetti.secret-bit.s11 { --cx: 180rpx; --cy: 140rpx; background: #c99bff; }
+.confetti.secret-bit.s12 { --cx: 230rpx; --cy: 270rpx; background: #7ef0c4; }
+.confetti.secret-bit.s13 { --cx: 280rpx; --cy: 180rpx; background: #ff9f6e; }
+.confetti.secret-bit.s14 { --cx: 330rpx; --cy: 120rpx; background: #e9ff8a; }
+.confetti.secret-bit.s15 { --cx: 380rpx; --cy: 230rpx; background: #ffd76e; }
+.confetti.secret-bit.s16 { --cx: -370rpx; --cy: 90rpx; background: #7ec8ff; }
+.confetti.secret-bit.s17 { --cx: 60rpx; --cy: 90rpx; background: #ff7ea8; }
+.confetti.secret-bit.s18 { --cx: -60rpx; --cy: 110rpx; background: #c99bff; }
+@keyframes secret-ribbon-flow { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+@keyframes secret-in { 0% { transform: translateY(-160%) scale(.82) rotate(-2deg); opacity: 0; } 55% { transform: translateY(10rpx) scale(1.04) rotate(.6deg); opacity: 1; } 100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; } }
+@keyframes secret-icon { 0%,100% { transform: scale(1) rotate(-4deg); } 50% { transform: scale(1.1) rotate(4deg); } }
+@keyframes secret-rays-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+.achv-flash.tier-hidden { background: radial-gradient(ellipse at center, transparent 26%, rgba(201,155,255,.28) 58%, rgba(255,215,110,.55) 86%, rgba(255,126,168,.66) 100%); }
+.achv-flash.tier-hidden.achv-flash-on { animation: secret-flash 2.2s ease-out; }
+@keyframes secret-flash { 0% { opacity: 0; } 12% { opacity: 1; } 45% { opacity: .32; } 70% { opacity: .88; } 100% { opacity: 0; } }
+
+/* 图鉴中的隐藏成就 */
+.achv-hidden-hint { margin: 0 0 20rpx; padding: 16rpx 20rpx; background: #f2edfa; border: 1rpx dashed #cdbcf0; border-radius: 14rpx; font-size: 19rpx; color: #7b6a9e; line-height: 1.6; }
+.achv-hidden-num { color: #7c4dff; font-weight: 600; }
+.achv-hidden-hint.done { background: #f6efdd; border-color: #e0cf9c; color: #9b774d; }
+.achv-cell.secret { background: linear-gradient(135deg,#f7f1ff,#f1ecfa); border-color: #d9c9f2; }
+.achv-cell.secret.on { border-color: #b79bff; box-shadow: 0 0 30rpx rgba(138,107,209,.22); opacity: 1; }
+.achv-cell.secret.locked { opacity: .88; border-style: dashed; }
+.achv-cell.secret.locked .achv-cell-icon { color: #b9a8d8; border-color: #cdbcf0; background: #fbf8ff; animation: secret-q 2.6s ease-in-out infinite; }
+.achv-cell.secret.locked .achv-cell-name { color: #8d7fa8; }
+.achv-cell.secret.locked .achv-cell-desc { color: #a79bbd; }
+@keyframes secret-q { 0%,100% { transform: scale(1); opacity: .72; } 50% { transform: scale(1.08); opacity: 1; } }
+
+.achv-chip.tier-hidden { border-color: #b79bff; background: linear-gradient(120deg,#f4ecff,#efe6ff); color: #6c4fb0; }

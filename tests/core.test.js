@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { CHARACTERS, EVENTS, STAT_META, ENDINGS, ENDING_RULES, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
-const { ACHIEVEMENTS, buildAchievementList } = require('../miniprogram/data/achievements');
+const { ACHIEVEMENTS, HIDDEN_ACHIEVEMENTS, buildAchievementList } = require('../miniprogram/data/achievements');
 const { GameCore, EXAM_QUESTION_MS } = require('../miniprogram/engine/core');
 const { CampusWorld } = require('../miniprogram/engine/world');
 
@@ -348,6 +348,78 @@ test('每题作答后倒计时重置为完整时长', () => {
   game.answerExam(questions[0].answer);
   assert.strictEqual(game.examTimer.remaining, EXAM_QUESTION_MS);
   assert.strictEqual(game.examAnswers.length, 1);
+});
+
+test('隐藏成就未解锁时图鉴只显示遮罩，解锁后才显形', () => {
+  const game = new GameCore('lin');
+  const lockedList = buildAchievementList(game.achievementSnapshot(), game.achievements);
+  const masked = lockedList.filter(item => item.masked);
+  assert.strictEqual(masked.length, HIDDEN_ACHIEVEMENTS.length);
+  masked.forEach(item => {
+    assert.strictEqual(item.name, '？？？');
+    assert.strictEqual(item.icon, '？');
+    assert.strictEqual(item.current, 0);
+    assert.ok(!item.desc.includes('100 分'));
+  });
+
+  const revealedList = buildAchievementList(game.achievementSnapshot(), ['secret-perfect']);
+  const revealed = revealedList.find(item => item.id === 'secret-perfect');
+  assert.strictEqual(revealed.masked, false);
+  assert.strictEqual(revealed.name, '完美无瑕');
+  assert.strictEqual(revealedList.filter(item => item.masked).length, HIDDEN_ACHIEVEMENTS.length - 1);
+});
+
+test('满分 100 分解锁隐藏成就「完美无瑕」', () => {
+  const game = new GameCore('chen');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  game.stats.knowledge = 100;
+  game.stats.practice = 100;
+  const questions = game.startExam();
+  questions.forEach(q => game.answerExam(q.answer));
+  const outcome = game.finishExam();
+  assert.strictEqual(outcome.semesterResult.score, 100);
+  assert.strictEqual(game.perfectScoreExams, 1);
+  assert.ok(game.achievements.includes('secret-perfect'));
+});
+
+test('隐藏成就「偶数人生」「既视感」依据成绩序列判定', () => {
+  const even = new GameCore('chen');
+  even.examScores = [70, 70, 70, 70];
+  even.checkAchievements();
+  assert.ok(even.achievements.includes('secret-even'));
+  assert.ok(even.achievements.includes('secret-dejavu'));
+
+  const odd = new GameCore('chen');
+  odd.examScores = [71, 82, 93];
+  odd.checkAchievements();
+  assert.ok(!odd.achievements.includes('secret-even'));
+  assert.ok(!odd.achievements.includes('secret-dejavu'));
+});
+
+test('低精力进场仍拿高分解锁「燃烧的答卷」', () => {
+  const game = new GameCore('chen');
+  while (!game.examReady) game.applyChoice('library', 0, 0);
+  game.stats.knowledge = 95;
+  game.stats.practice = 90;
+  game.energy = 10;
+  const questions = game.startExam();
+  questions.forEach(q => game.answerExam(q.answer));
+  const outcome = game.finishExam();
+  assert.ok(outcome.semesterResult.score >= 85);
+  assert.strictEqual(game.burnedExams, 1);
+  assert.ok(game.achievements.includes('secret-burn'));
+});
+
+test('「图鉴完全体」在其余成就全部解锁后才补解锁（两轮判定）', () => {
+  const game = new GameCore('lin');
+  game.achievements = ACHIEVEMENTS.filter(item => item.id !== 'secret-complete').map(item => item.id);
+  game.checkAchievements();
+  assert.ok(game.achievements.includes('secret-complete'));
+  assert.ok(game.pendingAchievements.includes('secret-complete'));
+
+  const fresh = new GameCore('lin');
+  fresh.checkAchievements();
+  assert.ok(!fresh.achievements.includes('secret-complete'), '新开局不应解锁元成就');
 });
 
 console.log(`\nAll ${passed} gameplay tests passed.`);

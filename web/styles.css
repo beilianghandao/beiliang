@@ -118,3 +118,35 @@
 .achv-cell-bar i{display:block;height:100%;background:#9db98a}
 .achv-cell.on .achv-cell-bar i{background:#c49743}
 @media(max-width:760px){.achv-grid{grid-template-columns:1fr}.achv-toast{margin-top:12px}.exam-timer-num{font-size:18px;min-width:54px}}
+
+/* ===== 隐藏成就：虹光飘条 + 全屏虹光 + 彩色粒子 ===== */
+.achv-toast.tier-hidden{background:linear-gradient(135deg,#2a1f45f5,#3a2a5cf5);border-color:#b79bff;box-shadow:0 26px 80px #1b1233d0,0 0 0 1px #ffffff33,0 0 70px #8a6bd166,0 0 140px #c99bff40;animation:secret-in .8s cubic-bezier(.2,.9,.25,1.12) both}
+.achv-toast.tier-hidden .achv-ribbon{background:linear-gradient(100deg,#ff7ea8,#ffd76e,#7ef0c4,#7ec8ff,#c99bff,#ff7ea8);background-size:300% 100%;animation:secret-ribbon-flow 3.2s linear infinite;color:#2a1d44}
+.achv-toast.tier-hidden .achv-ribbon-title{color:#2a1d44}
+.achv-toast.tier-hidden .achv-info b{color:#fff5d6}
+.achv-toast.tier-hidden .achv-info small{color:#c9bde8}
+.achv-toast.tier-hidden .achv-icon{color:#7a4d0a!important;border-color:#e6cf7a!important;background:radial-gradient(circle at 50% 35%,#fff8dc,#f0dda6);box-shadow:0 0 0 6px #ffffff22,0 0 34px #ffd76e8c;animation:secret-icon 1.4s ease-in-out infinite}
+.achv-toast.tier-hidden .achv-tier{background:linear-gradient(90deg,#ffe08a,#e3bd63)!important;color:#3a2a10!important;font-weight:700;box-shadow:0 0 18px #ffd76e66}
+.secret-rays{position:absolute;left:50%;top:40px;width:340px;height:340px;margin-left:-170px;pointer-events:none;border-radius:50%;opacity:.22;mix-blend-mode:screen;z-index:-1;background:conic-gradient(from 0deg,#ffd76e00 0deg,#ffd76e88 7deg,#ffd76e00 15deg,#ff7ea888 38deg,#ff7ea800 46deg,#7ec8ff88 78deg,#7ec8ff00 86deg,#7ef0c488 118deg,#7ef0c400 126deg,#c99bff88 158deg,#c99bff00 166deg,#ffd76e88 198deg,#ffd76e00 206deg,#ff7ea888 238deg,#ff7ea800 246deg,#7ec8ff88 278deg,#7ec8ff00 286deg,#7ef0c488 318deg,#7ef0c400 326deg,#c99bff88 350deg,#c99bff00 360deg);animation:secret-rays-spin 7s linear infinite}
+.confetti.secret-bit{width:9px;height:9px;border-radius:50%}
+@keyframes secret-ribbon-flow{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+@keyframes secret-in{0%{transform:translateY(-160%) scale(.82) rotate(-2deg);opacity:0}55%{transform:translateY(8px) scale(1.04) rotate(.6deg);opacity:1}100%{transform:translateY(0) scale(1) rotate(0);opacity:1}}
+@keyframes secret-icon{0%,100%{transform:scale(1) rotate(-4deg)}50%{transform:scale(1.1) rotate(4deg)}}
+@keyframes secret-rays-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.achv-flash.tier-hidden{background:radial-gradient(ellipse at center,transparent 26%,#c99bff40 58%,#ffd76e88 86%,#ff7ea8aa 100%)}
+.achv-flash.tier-hidden.achv-flash-on{animation:secret-flash 2.2s ease-out}
+@keyframes secret-flash{0%{opacity:0}12%{opacity:1}45%{opacity:.32}70%{opacity:.88}100%{opacity:0}}
+
+/* 图鉴中的隐藏成就 */
+.achv-hidden-hint{margin:-4px 0 14px;padding:10px 13px;background:#f2edfa;border:1px dashed #cdbcf0;border-radius:11px;font-size:11px;color:#7b6a9e;text-align:left;line-height:1.6}
+.achv-hidden-hint b{color:#7c4dff}
+.achv-hidden-hint.done{background:#f6efdd;border-color:#e0cf9c;color:#9b774d}
+.achv-cell.secret{background:linear-gradient(135deg,#f7f1ff,#f1ecfa);border-color:#d9c9f2}
+.achv-cell.secret.on{border-color:#b79bff;box-shadow:0 0 24px #8a6bd12e}
+.achv-cell.secret.locked{opacity:.85;border-style:dashed;background:repeating-linear-gradient(135deg,#f6f2fa,#f6f2fa 9px,#f1ecf8 9px,#f1ecf8 18px)}
+.achv-cell.secret.locked .achv-cell-icon{color:#b9a8d8;border-color:#cdbcf0;background:#fbf8ff;animation:secret-q 2.6s ease-in-out infinite}
+.achv-cell.secret.locked b{color:#8d7fa8}
+.achv-cell.secret.locked p{color:#a79bbd}
+@keyframes secret-q{0%,100%{transform:scale(1);opacity:.72}50%{transform:scale(1.08);opacity:1}}
+
+.achv-chip.tier-hidden{border-color:#b79bff;background:linear-gradient(120deg,#f4ecff,#efe6ff);color:#6c4fb0;box-shadow:0 0 16px #8a6bd12e}

@@ -1,5 +1,5 @@
 const { CHARACTERS, STAT_META, EVENTS, NPCS, ENDINGS, getExamQuestions, semesterLabel } = CampusRequire('content');
-const { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, achievementById, buildAchievementList } = CampusRequire('achievements');
+const { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, HIDDEN_ACHIEVEMENTS, achievementById, buildAchievementList } = CampusRequire('achievements');
 const { GameCore, EXAM_QUESTION_MS } = CampusRequire('core');
 const { CampusRenderer, drawSceneArt, preloadStandees } = CampusRequire('renderer');
 const { CampusWorld } = CampusRequire('world');
@@ -88,7 +88,7 @@ function updateHUD() {
 }
 
 // ---- 成就全屏飘条（错峰弹出 + 音效 + 屏幕金光 + 计数弹跳）----
-const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' } };
+const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' }, hidden: { label: '秘', color: '#8a6bd1' } };
 
 function drainAchievements() {
   let index = 0;
@@ -101,49 +101,66 @@ function drainAchievements() {
 }
 
 function showAchvToast(item) {
-  const tier = TIER_META[item.tier] || TIER_META.bronze;
-  const confetti = item.tier === 'gold' ? Array.from({ length: 10 }, (_, i) => `<i class="confetti c${i + 1}"></i>`).join('') : '';
+  const secret = !!item.hidden;
+  const tier = secret ? TIER_META.hidden : (TIER_META[item.tier] || TIER_META.bronze);
+  const confetti = secret ? secretConfetti() : item.tier === 'gold' ? Array.from({ length: 10 }, (_, i) => `<i class="confetti c${i + 1}"></i>`).join('') : '';
   const toast = document.createElement('div');
-  toast.className = `achv-toast tier-${item.tier}`;
-  toast.innerHTML = `<div class="achv-ribbon"><span class="achv-tag">ACHIEVEMENT UNLOCKED</span><b class="achv-ribbon-title">成就解锁</b></div>
-    <div class="achv-main"><span class="achv-icon" style="color:${tier.color};border-color:${tier.color}"><i>${item.icon}</i></span><div class="achv-info"><b>${item.name}</b><small>${item.desc}</small></div><span class="achv-tier" style="background:${tier.color}">${tier.label}级成就</span></div>${confetti}`;
+  toast.className = `achv-toast ${secret ? 'tier-hidden secret' : `tier-${item.tier}`}`;
+  toast.innerHTML = `<div class="achv-ribbon"><span class="achv-tag">${secret ? 'SECRET ACHIEVEMENT' : 'ACHIEVEMENT UNLOCKED'}</span><b class="achv-ribbon-title">${secret ? '隐藏成就 · 现世' : '成就解锁'}</b></div>
+    <div class="achv-main"><span class="achv-icon" style="color:${tier.color};border-color:${tier.color}"><i>${item.icon}</i></span><div class="achv-info"><b>${item.name}</b><small>${item.desc}</small></div><span class="achv-tier" style="background:${tier.color};color:${secret ? '#2a1d44' : '#fffdf0'}">${secret ? '隐藏成就' : `${tier.label}级成就`}</span></div>${confetti}${secret ? '<span class="secret-rays"></span>' : ''}`;
   $('#achv-layer').appendChild(toast);
-  playAchvSound(item.tier);
-  flashScreen(item.tier);
+  playAchvSound(secret ? 'hidden' : item.tier);
+  flashScreen(secret ? 'hidden' : item.tier);
   bumpAchvCount();
-  setTimeout(() => { toast.classList.add('achv-out'); setTimeout(() => toast.remove(), 560); }, 3100);
+  // 隐藏成就停留更久，让玩家看清这份稀有的证明
+  setTimeout(() => { toast.classList.add('achv-out'); setTimeout(() => toast.remove(), 620); }, secret ? 5200 : 3100);
 }
 
-// 成就音效：金级四音上扬琶音，银级双音，铜级短促双音（Web Audio 合成，无需素材）
+// 隐藏成就专属彩带：26 枚虹色粒子四散，比金级更密更远
+const SECRET_COLORS = ['#ffd76e', '#ff9f6e', '#ff7ea8', '#c99bff', '#7ec8ff', '#7ef0c4', '#e9ff8a'];
+function secretConfetti() {
+  return Array.from({ length: 26 }, (_, i) => {
+    const angle = (i / 26) * Math.PI * 2;
+    const radius = 128 + (i % 5) * 28;
+    const cx = Math.round(Math.cos(angle) * radius);
+    const cy = Math.round(Math.abs(Math.sin(angle)) * radius * 0.8 + 56);
+    const rot = (i % 2 ? 1 : -1) * (300 + i * 14);
+    const delay = 0.2 + (i % 6) * 0.06;
+    return `<i class="confetti secret-bit" style="--cx:${cx}px;--cy:${cy}px;--rot:${rot}deg;background:${SECRET_COLORS[i % SECRET_COLORS.length]};animation-delay:${delay}s"></i>`;
+  }).join('');
+}
+
+// 成就音效：金级四音上扬琶音，银级双音，铜级短促双音，隐藏成就六音华丽琶音（Web Audio 合成，无需素材）
 let achvAudio = null;
 function playAchvSound(tier) {
   try {
     achvAudio = achvAudio || new (window.AudioContext || window.webkitAudioContext)();
     if (achvAudio.state === 'suspended') achvAudio.resume();
-    const notes = tier === 'gold' ? [523.25, 659.25, 783.99, 1046.5] : tier === 'silver' ? [587.33, 880] : [440, 587.33];
+    const notes = tier === 'hidden' ? [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093] : tier === 'gold' ? [523.25, 659.25, 783.99, 1046.5] : tier === 'silver' ? [587.33, 880] : [440, 587.33];
+    const volume = tier === 'hidden' ? 0.15 : tier === 'gold' ? 0.16 : 0.1;
     notes.forEach((freq, i) => {
       const osc = achvAudio.createOscillator();
       const gain = achvAudio.createGain();
-      osc.type = 'triangle';
+      osc.type = tier === 'hidden' ? 'sine' : 'triangle';
       osc.frequency.value = freq;
-      const start = achvAudio.currentTime + i * 0.085;
+      const start = achvAudio.currentTime + i * (tier === 'hidden' ? 0.075 : 0.085);
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(tier === 'gold' ? 0.16 : 0.1, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.34);
+      gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
       osc.connect(gain); gain.connect(achvAudio.destination);
-      osc.start(start); osc.stop(start + 0.36);
+      osc.start(start); osc.stop(start + 0.44);
     });
   } catch (e) { /* 无音频环境时静默跳过 */ }
 }
 
-// 屏幕边缘金光闪烁，等级越高越亮
+// 屏幕边缘光晕闪烁，等级越高越亮；隐藏成就为全屏虹光
 function flashScreen(tier) {
   const flash = $('#achv-flash');
   if (!flash) return;
-  flash.classList.remove('achv-flash-on', 'tier-bronze', 'tier-silver', 'tier-gold');
+  flash.classList.remove('achv-flash-on', 'tier-bronze', 'tier-silver', 'tier-gold', 'tier-hidden');
   void flash.offsetWidth;
   flash.classList.add('achv-flash-on', `tier-${tier}`);
-  setTimeout(() => flash.classList.remove('achv-flash-on'), 1000);
+  setTimeout(() => flash.classList.remove('achv-flash-on'), tier === 'hidden' ? 2200 : 1000);
 }
 
 // HUD 成就计数弹跳
@@ -160,7 +177,10 @@ function bumpAchvCount() {
 function semesterAchvChipsHTML(semester) {
   const items = core.achievementLog.filter(entry => entry.semester === semester).map(entry => achievementById(entry.id)).filter(Boolean);
   if (!items.length) return '';
-  const chips = items.map(item => `<span class="achv-chip tier-${item.tier}"><i style="color:${(TIER_META[item.tier] || TIER_META.bronze).color}">${item.icon}</i>${item.name}</span>`).join('');
+  const chips = items.map(item => {
+    const tier = item.hidden ? TIER_META.hidden : (TIER_META[item.tier] || TIER_META.bronze);
+    return `<span class="achv-chip tier-${item.hidden ? 'hidden' : item.tier}"><i style="color:${tier.color}">${item.icon}</i>${item.name}</span>`;
+  }).join('');
   return `<div class="semester-achv"><div class="semester-achv-title">本学期新解锁成就 × ${items.length}</div><div class="semester-achv-chips">${chips}</div></div>`;
 }
 
@@ -301,7 +321,7 @@ function showGuide() {
     ['四年八学期','8 个学期覆盖完整大学四年。每学期 8 周行动 + 1 次期末考；每个场景有多轮剧情问答，可在不同学期持续探索。'],
     ['自由探索','使用 WASD / 方向键，或直接点击地面寻路。走近建筑入口与 NPC 后，点击提示卡片进入场景。'],
     ['做出选择',`${TOTAL_STORIES} 段故事均包含至少 5 轮连续问答；最终选择完成任务。重复完成仍有收益，但属性成长会递减。`],
-    ['收集成就',`${ACHIEVEMENTS.length} 项成就等待解锁：完成故事、提升属性、考试全对……解锁时会有全屏飘条提示，结算页还能回看学期成绩柱状对比。`],
+    ['收集成就',`${ACHIEVEMENTS.length} 项成就等待解锁：完成故事、提升属性、考试全对……其中 ${HIDDEN_ACHIEVEMENTS.length} 项是隐藏成就，图鉴里只显示「？？？」，达成苛刻条件才会现世——那一刻会有全屏虹光、专属琶音和最华丽的飘条。`],
     ['照顾自己','行动消耗精力，每周恢复 10 点（江野 +8）。精力过低会影响心态，期末后假期会大幅恢复。'],
     ['迎接毕业',`每学期期末考由 5 道限时情境题（每题 30 秒，超时按错处理，切后台自动暂停）+ 日常成长计分。毕业时综合五项属性、属性组合和四年均分，走向 ${ENDINGS.length} 种不同结局之一。`]
   ];
@@ -337,7 +357,16 @@ function showEnding(ending) {
 function showAchievements() {
   const list = buildAchievementList(core.achievementSnapshot(), core.achievements);
   const unlocked = list.filter(item => item.unlocked).length;
-  openModal('achv', `<article class="small-panel achv-panel"><button class="panel-close" data-action="close">×</button><div class="panel-kicker">ACHIEVEMENT COLLECTION</div><h2 class="panel-title">成就图鉴</h2><div class="achv-summary"><div class="achv-summary-bar"><i style="width:${unlocked / list.length * 100}%"></i></div><span>${unlocked} / ${list.length} 已解锁</span></div><div class="achv-grid">${list.map(item => `<div class="achv-cell ${item.unlocked ? 'on' : ''}"><span class="achv-cell-icon" style="color:${item.catColor}">${item.icon}</span><div class="achv-cell-body"><b>${item.name}<small>${item.catName} · ${TIER_META[item.tier].label}级</small></b><p>${item.desc}</p><div class="achv-cell-bar"><i style="width:${Math.min(100, Math.round(item.current / item.target * 100))}%"></i></div></div></div>`).join('')}</div><button class="secondary-button" data-action="close">返回</button></article>`);
+  const hiddenLeft = list.filter(item => item.masked).length;
+  const cells = list.map(item => {
+    if (item.masked) {
+      return `<div class="achv-cell secret locked"><span class="achv-cell-icon">？</span><div class="achv-cell-body"><b>？？？<small>隐藏成就</small></b><p>${item.desc}</p><div class="achv-cell-bar"><i style="width:0%"></i></div></div></div>`;
+    }
+    const tierLabel = item.hidden ? '秘' : TIER_META[item.tier].label;
+    return `<div class="achv-cell ${item.unlocked ? 'on' : ''} ${item.hidden ? 'secret' : ''}"><span class="achv-cell-icon" style="color:${item.catColor}">${item.icon}</span><div class="achv-cell-body"><b>${item.name}<small>${item.catName} · ${tierLabel}级</small></b><p>${item.desc}</p><div class="achv-cell-bar"><i style="width:${Math.min(100, Math.round(item.current / item.target * 100))}%"></i></div></div></div>`;
+  }).join('');
+  const hint = hiddenLeft ? `<div class="achv-hidden-hint">图鉴中还有 <b>${hiddenLeft}</b> 项隐藏成就，达成苛刻条件后才会揭开真容</div>` : `<div class="achv-hidden-hint done">隐藏成就已全部现世 · 你就是青梧的传说</div>`;
+  openModal('achv', `<article class="small-panel achv-panel"><button class="panel-close" data-action="close">×</button><div class="panel-kicker">ACHIEVEMENT COLLECTION</div><h2 class="panel-title">成就图鉴</h2><div class="achv-summary"><div class="achv-summary-bar"><i style="width:${unlocked / list.length * 100}%"></i></div><span>${unlocked} / ${list.length} 已解锁</span></div>${hint}<div class="achv-grid">${cells}</div><button class="secondary-button" data-action="close">返回</button></article>`);
 }
 
 function interact() {

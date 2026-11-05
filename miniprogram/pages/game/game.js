@@ -1,14 +1,14 @@
 const { STAT_META, EVENTS, semesterLabel } = require('../../data/content');
-const { ACHIEVEMENTS, achievementById, buildAchievementList } = require('../../data/achievements');
+const { ACHIEVEMENTS, HIDDEN_ACHIEVEMENTS, achievementById, buildAchievementList } = require('../../data/achievements');
 const { GameCore, EXAM_QUESTION_MS } = require('../../engine/core');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
 
-const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' } };
+const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' }, hidden: { label: '秘', color: '#8a6bd1' } };
 const pad2 = value => String(value).padStart(2, '0');
 
 Page({
-  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '', achvToasts: [], achvFlash: '', achvCountBump: false, achvCount: 0, achvTotal: ACHIEVEMENTS.length, examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false },
+  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '', achvToasts: [], achvFlash: '', achvCountBump: false, achvCount: 0, achvTotal: ACHIEVEMENTS.length, achvHiddenTotal: HIDDEN_ACHIEVEMENTS.length, achvHiddenLeft: 0, examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false },
 
   onLoad() {
     this.core = new GameCore(getApp().globalData.characterId);
@@ -76,24 +76,37 @@ Page({
     }
   },
   showAchvToast(item) {
-    const tier = TIER_META[item.tier] || TIER_META.bronze;
-    const toast = { id: item.id, icon: item.icon, name: item.name, desc: item.desc, tier: item.tier, gold: item.tier === 'gold', tierLabel: tier.label, tierColor: tier.color };
+    const secret = !!item.hidden;
+    const tier = secret ? TIER_META.hidden : (TIER_META[item.tier] || TIER_META.bronze);
+    const toast = { id: item.id, icon: item.icon, name: item.name, desc: item.desc, tier: item.tier, hidden: secret, gold: item.tier === 'gold', tierLabel: secret ? '隐藏' : tier.label, tierColor: tier.color };
     this.setData({ achvToasts: this.data.achvToasts.concat(toast) });
-    // 震动反馈：金重、银中、铜轻
-    if (wx.vibrateShort) wx.vibrateShort({ type: item.tier === 'gold' ? 'heavy' : item.tier === 'silver' ? 'medium' : 'light', fail: () => {} });
-    // 屏幕边缘金光闪烁
-    this.setData({ achvFlash: `achv-flash-on tier-${item.tier}` });
-    setTimeout(() => this.setData({ achvFlash: '' }), 1000);
+    // 震动反馈：隐藏成就长震动 + 重震，金重、银中、铜轻
+    if (secret) {
+      if (wx.vibrateLong) wx.vibrateLong({ fail: () => {} });
+      setTimeout(() => { if (wx.vibrateShort) wx.vibrateShort({ type: 'heavy', fail: () => {} }); }, 380);
+    } else if (wx.vibrateShort) {
+      wx.vibrateShort({ type: item.tier === 'gold' ? 'heavy' : item.tier === 'silver' ? 'medium' : 'light', fail: () => {} });
+    }
+    // 屏幕边缘光晕：隐藏成就为全屏虹光
+    this.setData({ achvFlash: `achv-flash-on tier-${secret ? 'hidden' : item.tier}` });
+    setTimeout(() => this.setData({ achvFlash: '' }), secret ? 2200 : 1000);
     // HUD 计数弹跳
     this.setData({ achvCount: this.core.achievements.length, achvCountBump: false });
     setTimeout(() => this.setData({ achvCountBump: true }), 30);
     const id = item.id;
-    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(t => t.id !== id) }), 3400);
+    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(t => t.id !== id) }), secret ? 5400 : 3400);
   },
 
   openAchievements() {
-    const list = buildAchievementList(this.core.achievementSnapshot(), this.core.achievements).map(item => ({ ...item, tierLabel: (TIER_META[item.tier] || TIER_META.bronze).label, progress: Math.min(100, Math.round(item.current / item.target * 100)) }));
-    this.setData({ modal: 'achv', achvList: list, achvUnlocked: list.filter(i => i.unlocked).length });
+    const list = buildAchievementList(this.core.achievementSnapshot(), this.core.achievements).map(item => {
+      const tierLabel = item.masked ? '？' : item.hidden ? '秘' : (TIER_META[item.tier] || TIER_META.bronze).label;
+      return {
+        ...item, tierLabel,
+        metaText: item.masked ? '隐藏成就' : `${item.catName} · ${tierLabel}级`,
+        progress: Math.min(100, Math.round(item.current / item.target * 100))
+      };
+    });
+    this.setData({ modal: 'achv', achvList: list, achvUnlocked: list.filter(i => i.unlocked).length, achvHiddenLeft: list.filter(i => i.masked).length });
   },
 
   // ---- 学期成绩柱状对比数据 ----
@@ -300,7 +313,7 @@ Page({
       this.setData({ modal: 'ending', ending: outcome.ending, endingChart: this.buildChartData(outcome.ending.examScores, -1, `四年成长轨迹 · 毕业均分 ${outcome.ending.score}`) });
     } else if (outcome && outcome.semesterResult) {
       const scores = outcome.semesterResult.examScores || this.core.examScores;
-      const semesterAchv = this.core.achievementLog.filter(entry => entry.semester === outcome.semesterResult.semester).map(entry => achievementById(entry.id)).filter(Boolean).map(item => ({ id: item.id, icon: item.icon, name: item.name, tierColor: (TIER_META[item.tier] || TIER_META.bronze).color, tier: item.tier }));
+      const semesterAchv = this.core.achievementLog.filter(entry => entry.semester === outcome.semesterResult.semester).map(entry => achievementById(entry.id)).filter(Boolean).map(item => ({ id: item.id, icon: item.icon, name: item.name, hidden: !!item.hidden, tierColor: item.hidden ? TIER_META.hidden.color : (TIER_META[item.tier] || TIER_META.bronze).color, tier: item.tier }));
       this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName, semesterChart: this.buildChartData(scores, scores.length - 1), semesterAchv });
     }
   },

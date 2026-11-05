@@ -29,6 +29,10 @@ class GameCore {
     this.examTimeouts = 0;      // 本场考试超时题数（按错处理）
     this.perfectExams = 0;      // 全对场次
     this.calmExams = 0;         // 无超时题的完整场次
+    this.perfectScoreExams = 0; // 满分 100 分场次
+    this.minExamScore = null;   // 历史最低学期成绩
+    this.burnedExams = 0;       // 精力低于 15 开考仍拿 85 分以上的场次
+    this.examStartEnergy = null;// 本场开考时的精力（用于隐藏成就判定）
     this.ending = null;
     this.achievements = [];         // 已解锁成就 id（按解锁顺序）
     this.achievementLog = [];       // 解锁记录 { id, semester, week }
@@ -134,6 +138,10 @@ class GameCore {
       bestExamScore: this.bestExamScore,
       perfectExams: this.perfectExams,
       calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams,
+      minExamScore: this.minExamScore === null ? 100 : this.minExamScore,
+      burnedExams: this.burnedExams,
+      unlockedIds: [...this.achievements],
       graduated: !!this.ending,
       endingId: this.ending ? this.ending.id : null,
       statKeys
@@ -141,14 +149,20 @@ class GameCore {
   }
 
   // 评估并解锁新成就，返回本次新解锁的完整成就对象列表
+  // 两轮判定：「图鉴完全体」这类元成就要等其他成就先入账才满足条件
   checkAchievements() {
-    const snapshot = this.achievementSnapshot();
-    const fresh = evaluateAchievements(snapshot, this.achievements);
-    fresh.forEach(item => {
-      this.achievements.push(item.id);
-      this.achievementLog.push({ id: item.id, semester: this.semester, week: this.week });
-      this.pendingAchievements.push(item.id);
-    });
+    const fresh = [];
+    for (let pass = 0; pass < 2; pass++) {
+      const snapshot = this.achievementSnapshot();
+      const batch = evaluateAchievements(snapshot, this.achievements);
+      if (!batch.length) break;
+      batch.forEach(item => {
+        this.achievements.push(item.id);
+        this.achievementLog.push({ id: item.id, semester: this.semester, week: this.week });
+        this.pendingAchievements.push(item.id);
+        fresh.push(item);
+      });
+    }
     return fresh;
   }
 
@@ -201,6 +215,7 @@ class GameCore {
     this.currentExam = getExamQuestions(this.semester);
     this.examAnswers = [];
     this.examTimeouts = 0;
+    this.examStartEnergy = this.energy;
     this.resetExamTimer();
     return this.currentExam;
   }
@@ -225,6 +240,10 @@ class GameCore {
     if (score > this.bestExamScore) this.bestExamScore = score;
     if (correct === questions.length) this.perfectExams += 1;
     if (this.examTimeouts === 0) this.calmExams += 1;
+    if (score >= 100) this.perfectScoreExams += 1;
+    this.minExamScore = this.minExamScore === null ? score : Math.min(this.minExamScore, score);
+    if (this.examStartEnergy !== null && this.examStartEnergy < 15 && score >= 85) this.burnedExams += 1;
+    this.examStartEnergy = null;
     this.examTimer = null;
 
     if (this.semester >= this.maxSemesters) {
@@ -279,6 +298,7 @@ class GameCore {
       visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40),
       achievements: this.achievements, achievementLog: this.achievementLog,
       bestExamScore: this.bestExamScore, perfectExams: this.perfectExams, calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams, minExamScore: this.minExamScore, burnedExams: this.burnedExams,
       energyLowReached: this.energyLowReached
     };
   }
