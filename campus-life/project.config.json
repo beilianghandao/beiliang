@@ -1,0 +1,15 @@
+{
+  "description": "青梧大学：大学生存图鉴 - 微信小程序",
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "3.4.0",
+  "projectname": "campus-life",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": false
+  },
+  "miniprogramRoot": "miniprogram/"
+}

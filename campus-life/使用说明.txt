@@ -1,0 +1,35 @@
+﻿青梧大学 · 校园生活（canvas 校园养成游戏）
+==========================================
+
+【怎么玩】
+Windows：双击「启动游戏.bat」，浏览器会自动打开。
+macOS / Linux：终端进入本目录，执行  sh 启动游戏.sh
+命令行也行：npm start，然后手动打开 http://localhost:8080/
+
+运行条件：需要 Node.js 16 以上。没装的话去 https://nodejs.org 下 LTS 版，
+安装一路下一步即可。本项目零第三方依赖，不用 npm install。
+
+8080 端口被别的程序占用时，服务会自动换到 8081、8082……
+窗口里会打印实际地址，照着打开就行。
+
+【目录说明】
+web/              网页版，双击启动脚本跑的就是它
+miniprogram/      微信小程序版，用微信开发者工具导入这个目录
+scripts/          构建（build-web.js）、本地服务（serve.js）、语法检查
+tests/            13 项玩法回归测试，npm test
+tools/            matte.py 抠图、color-match.py 调色（改素材时才用）
+generated-assets/ AI 生成的原始立绘与走路帧（素材源，游戏运行不读取）
+角色建模说明.md    立绘规范、走路帧怎么做、踩过的坑
+
+【改了代码之后】
+改 miniprogram/engine 或 data 里的源码，执行 npm run build 重新生成 web/bundle.js。
+构建脚本会把内容指纹写进 index.html，避免浏览器吃旧缓存。
+
+【换了立绘素材之后】
+走路帧图片地址带版本串（renderer.js 里的 ?v=8），换图后要把它加一，
+否则预览面板可能继续读缓存里的旧图。
+
+【小程序版说明】
+用微信开发者工具「导入项目」选中 miniprogram 目录。
+小程序端没有 document/Image，立绘贴图会退回逐笔绘制，
+画面与网页版略有差异，这是预期行为。

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#f6f0e4">
+  <title>青梧大学 · 大学生存图鉴</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="select-screen" class="select-page">
+    <div class="sky-deco cloud-one"></div><div class="sky-deco cloud-two"></div>
+    <header class="hero">
+      <div class="eyebrow"><span></span> CAMPUS SURVIVAL GUIDE <span></span></div>
+      <div class="emblem">梧<i class="leaf-a"></i><i class="leaf-b"></i></div>
+      <h1>青梧大学</h1><h2>大学生存图鉴</h2>
+      <p>一张地图，一学期，无数种成为自己的方式。</p>
+    </header>
+    <section class="semester-card"><div class="semester-icon">04</div><div><b>大学四年 · 即将启程</b><small>8 个学期 / 8 大场景 / 16 段故事 / 5 种毕业结局</small></div><span>2026 秋</span></section>
+    <div class="section-heading"><b>选择你的入学角色</b><small>每个选择，都有新的故事</small></div>
+    <section id="character-grid" class="character-grid"></section>
+    <blockquote id="character-quote"></blockquote>
+    <button id="start-button" class="start-button">开启我的大学故事 <span>→</span></button>
+    <footer>不必成为标准答案，只需要成为你自己</footer>
+  </main>
+
+  <main id="game-screen" class="game-page hidden">
+    <canvas id="campus"></canvas><div class="top-shade"></div>
+    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><button id="guide-button" class="header-button" aria-label="校园指南">?</button></header>
+    <section class="status-card"><div class="profile-row"><div id="profile-avatar" class="profile-avatar"></div><div class="profile-info"><b id="profile-name"></b><small id="profile-title"></small></div><div class="energy">精力 <b id="energy-value"></b></div></div><div class="energy-track"><i id="energy-bar"></i></div><div id="stats-row" class="stats-row"></div></section>
+    <section class="quest-card"><div class="quest-label">大学四年 · 目标</div><p>探索 8 个场景 × 16 段故事，读完八个学期</p><div class="quest-progress"><i id="quest-bar"></i></div><div class="quest-meta"><span id="quest-count"></span><span id="quest-percent"></span></div></section>
+    <div class="keyboard-tip">WASD / 方向键移动 · 点击地图寻路 · E 互动</div>
+    <div id="location-toast" class="location-toast hidden"></div>
+    <div id="joystick" class="joystick"><div class="joy-ring"></div><div class="joy-arrows">⌃</div><div id="joy-knob" class="joy-knob"></div></div>
+    <div class="action-area"><button id="action-button" class="action-button"><span>＋</span><b>探索</b></button><small>走近发光入口</small></div>
+    <button id="exam-button" class="exam-button hidden">期末周已到达 · 进入考试 →</button>
+    <div id="modal-mask" class="modal-mask hidden"><div id="modal-content"></div></div>
+  </main>
+  <script src="bundle.js?v=55cdb9ed"></script><script src="app.js?v=55cdb9ed"></script>
+</body>
+</html>

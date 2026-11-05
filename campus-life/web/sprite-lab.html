@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>人物建模预览 · 青梧大学</title>
+<style>
+  body{margin:0;background:#eef3e8;font-family:system-ui,sans-serif;color:#2c3a34}
+  h1{font-size:15px;margin:14px 18px 4px;letter-spacing:1px}
+  p{margin:0 18px 12px;font-size:12px;color:#5d6d63}
+  #lab{display:block;margin:0 18px 18px;width:1400px;height:1640px}
+</style>
+</head>
+<body>
+<h1>人物建模预览 · 4 角色 × 4 朝向 × 走动/静止</h1>
+<p>左：站立　右：走路　·　四行分别是林知夏（长发）/ 陈屿（短发·眼镜）/ 苏桃（马尾）/ 江野（乱发）　·　改完 renderer.js 后刷新本页即可对照</p>
+<canvas id="lab" width="1400" height="1640"></canvas>
+<script src="./bundle.js"></script>
+<script>
+const require = window.CampusRequire;
+const { CampusRenderer } = require('renderer');
+const { CHARACTERS } = require('content');
+const canvas = document.getElementById('lab');
+const ctx = canvas.getContext('2d');
+const r = new CampusRenderer(ctx, canvas.width, canvas.height);
+
+const dirs = ['down', 'up', 'left', 'right'];
+const cellW = 350, cellH = 408;
+
+ctx.fillStyle = '#eef3e8';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+CHARACTERS.forEach((ch, row) => {
+  dirs.forEach((dir, col) => {
+    const cx = col * cellW + cellW / 2;
+    const baseY = row * cellH + 386;
+    // 地面参考线
+    ctx.strokeStyle = 'rgba(90,120,90,.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 70, baseY + 2); ctx.lineTo(cx + 70, baseY + 2); ctx.stroke();
+
+    const person = { ...ch, x: 0, y: 0, facing: dir, moving: false };
+    const draw = (px, py, moving, t) => {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(2.35, 2.35);
+      r.drawPerson(ctx, { ...person, x: 0, y: 0, moving }, true, t);
+      ctx.restore();
+    };
+    // 左：静止（原地站立）
+    draw(cx - 52, baseY, false, 1200);
+    // 右：走路（同一朝向）
+    const t = row * 300 + col * 90 + 700;
+    draw(cx + 52, baseY, true, t);
+
+    ctx.fillStyle = '#7c8c80';
+    ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(dir, cx, baseY + 22);
+  });
+  ctx.fillStyle = '#3d5148';
+  ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(CHARACTERS[row].name, 8, row * cellH + 26);
+});
+</script>
+</body>
+</html>

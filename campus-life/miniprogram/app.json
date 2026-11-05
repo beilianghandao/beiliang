@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/select/select", "pages/game/game"],
+  "window": {
+    "navigationBarBackgroundColor": "#f7f2e7",
+    "navigationBarTitleText": "青梧大学 · 大学生存图鉴",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f2e7"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

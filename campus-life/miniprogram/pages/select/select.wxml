@@ -1,0 +1,43 @@
+<view class="select-page">
+  <view class="sky-deco cloud-one"></view><view class="sky-deco cloud-two"></view>
+  <view class="hero">
+    <view class="eyebrow"><text class="line"></text> CAMPUS SURVIVAL GUIDE <text class="line"></text></view>
+    <view class="emblem"><text>梧</text><view class="leaf leaf-a"></view><view class="leaf leaf-b"></view></view>
+    <view class="title">青梧大学</view>
+    <view class="subtitle">大学生存图鉴</view>
+    <view class="intro">一张地图，一学期，无数种成为自己的方式。</view>
+  </view>
+
+  <view class="semester-card">
+    <view class="semester-icon">01</view>
+    <view class="semester-info"><text class="semester-title">新生学期 · 即将开始</text><text class="semester-desc">8 周校园生活 / 7 大场景 / 5 种人生结局</text></view>
+    <view class="semester-badge">2026 秋</view>
+  </view>
+
+  <view class="section-heading"><text>选择你的入学角色</text><text class="heading-note">每个选择，都有新的故事</text></view>
+  <view class="character-grid">
+    <view wx:for="{{characters}}" wx:key="id" class="character-card {{selected === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="choose">
+      <view class="selected-mark" wx:if="{{selected === item.id}}">✓</view>
+      <view class="portrait" style="--theme:{{item.color}};--hair:{{item.hair}};--skin:{{item.skin}};">
+        <view class="portrait-bg"></view>
+        <view class="avatar">
+          <view class="avatar-hair-back hair-{{item.hairStyle}}"></view><view class="avatar-neck"></view><view class="avatar-body"><view class="avatar-collar"></view><view class="avatar-zip"></view></view>
+          <view class="avatar-face"><view class="eye left"></view><view class="eye right"></view><view class="mouth"></view><view class="blush left"></view><view class="blush right"></view></view>
+          <view class="avatar-hair hair-{{item.hairStyle}}"><view class="hair-shine"></view></view><view class="avatar-fringe hair-{{item.hairStyle}}"></view>
+        </view>
+      </view>
+      <view class="character-name">{{item.name}}<text class="character-number">0{{index + 1}}</text></view>
+      <view class="character-title">{{item.title}}</view>
+      <view class="mini-stats">
+        <view><text>学识</text><text class="stat-value">{{item.stats.knowledge}}</text></view>
+        <view><text>人缘</text><text class="stat-value">{{item.stats.social}}</text></view>
+        <view><text>心态</text><text class="stat-value">{{item.stats.mood}}</text></view>
+      </view>
+      <view class="trait">{{item.trait}}</view>
+    </view>
+  </view>
+
+  <view class="quote"><text class="quote-mark">“</text>{{current.quote}}<text class="quote-mark">”</text></view>
+  <button class="start-button" bindtap="start"><text>开启我的大学故事</text><text class="arrow">→</text></button>
+  <view class="footer-note">不必成为标准答案，只需要成为你自己</view>
+</view>
