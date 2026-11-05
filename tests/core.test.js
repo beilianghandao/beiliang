@@ -247,10 +247,58 @@ test('毕业时解锁「顺利毕业」并把成就进度写入存档', () => {
     game.finishExam();
   }
   assert.ok(game.achievements.includes('graduate'));
+  assert.ok(game.achievements.includes('graduate-chen'));
+  assert.ok(!game.achievements.includes('graduate-lin'));
+  assert.ok(game.achievements.includes('calm-graduate'));
+  assert.ok(game.achievements.includes('all-pass'));
+  assert.ok(game.achievements.includes('honor-graduate'));
+  assert.ok(game.achievements.includes('exam-90'));
   assert.ok(game.pendingAchievements.includes('graduate'));
   const saved = game.serialize();
   assert.ok(Array.isArray(saved.achievements) && saved.achievements.includes('graduate'));
   assert.ok(Array.isArray(saved.achievementLog));
+});
+
+test('场景全清解锁「场景大师」，重温故事解锁「重温旧事」与「故事常客」', () => {
+  const game = new GameCore('lin');
+  for (let i = 0; i < 8; i++) game.applyChoice('library', i, 0);
+  assert.ok(game.achievements.includes('scene-master'));
+  const questions = game.startExam();
+  questions.forEach(q => game.answerExam(q.answer));
+  game.finishExam();
+  game.applyChoice('library', 0, 0);
+  assert.ok(game.achievements.includes('revisit'));
+  game.applyChoice('library', 0, 0);
+  assert.ok(game.achievements.includes('regular'));
+});
+
+test('属性满值解锁「登峰造极」，五项齐高解锁「全面开花」', () => {
+  const game = new GameCore('chen');
+  game.stats.knowledge = 100;
+  game.stats.fitness = 70; game.stats.mood = 70; game.stats.social = 70; game.stats.practice = 70;
+  const fresh = game.checkAchievements().map(a => a.id);
+  assert.ok(fresh.includes('stat-max'));
+  assert.ok(fresh.includes('all-round'));
+});
+
+test('连续三学期成绩上升解锁「步步高」，下降则不触发', () => {
+  const rising = new GameCore('lin');
+  rising.examScores = [50, 62, 75];
+  rising.checkAchievements();
+  assert.ok(rising.achievements.includes('exam-rise'));
+  const falling = new GameCore('lin');
+  falling.examScores = [80, 60, 40];
+  falling.checkAchievements();
+  assert.ok(!falling.achievements.includes('exam-rise'));
+});
+
+test('精力跌破 20 仍行动解锁「极限运转」并写入存档', () => {
+  const game = new GameCore('lin');
+  game.energy = 15;
+  game.applyChoice('library', 0, 0);
+  assert.ok(game.energyLowReached);
+  assert.ok(game.achievements.includes('low-energy'));
+  assert.ok(game.serialize().energyLowReached);
 });
 
 // ---- 期末考倒计时（用户故事 3：限时答题，超时按错算）----

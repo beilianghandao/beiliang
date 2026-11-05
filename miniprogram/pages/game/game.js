@@ -1,5 +1,5 @@
 const { STAT_META, EVENTS, semesterLabel } = require('../../data/content');
-const { ACHIEVEMENTS, buildAchievementList } = require('../../data/achievements');
+const { ACHIEVEMENTS, achievementById, buildAchievementList } = require('../../data/achievements');
 const { GameCore, EXAM_QUESTION_MS } = require('../../engine/core');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
@@ -8,7 +8,7 @@ const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label:
 const pad2 = value => String(value).padStart(2, '0');
 
 Page({
-  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '', achvToasts: [], achvCount: 0, achvTotal: ACHIEVEMENTS.length, examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false },
+  data: { modal: '', nearby: null, examReady: false, sceneProgress: [], dialogueRound: 0, currentRound: null, replyMode: '', achvToasts: [], achvFlash: '', achvCountBump: false, achvCount: 0, achvTotal: ACHIEVEMENTS.length, examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false },
 
   onLoad() {
     this.core = new GameCore(getApp().globalData.characterId);
@@ -65,18 +65,30 @@ Page({
     });
   },
 
-  // ---- 成就全屏飘条（解锁队列 → 逐条弹出 → 自动收起）----
+  // ---- 成就全屏飘条（错峰弹出 + 震动 + 屏幕金光 + 计数弹跳）----
   drainAchievements() {
-    const fresh = [];
+    let index = 0;
     let item;
     while ((item = this.core.consumePendingAchievement())) {
-      const tier = TIER_META[item.tier] || TIER_META.bronze;
-      fresh.push({ id: item.id, icon: item.icon, name: item.name, desc: item.desc, tierLabel: tier.label, tierColor: tier.color });
+      const captured = item;
+      setTimeout(() => this.showAchvToast(captured), index * 340);
+      index++;
     }
-    if (!fresh.length) return;
-    this.setData({ achvToasts: this.data.achvToasts.concat(fresh) });
-    const ids = new Set(fresh.map(i => i.id));
-    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(i => !ids.has(i.id)) }), 3200);
+  },
+  showAchvToast(item) {
+    const tier = TIER_META[item.tier] || TIER_META.bronze;
+    const toast = { id: item.id, icon: item.icon, name: item.name, desc: item.desc, tier: item.tier, gold: item.tier === 'gold', tierLabel: tier.label, tierColor: tier.color };
+    this.setData({ achvToasts: this.data.achvToasts.concat(toast) });
+    // 震动反馈：金重、银中、铜轻
+    if (wx.vibrateShort) wx.vibrateShort({ type: item.tier === 'gold' ? 'heavy' : item.tier === 'silver' ? 'medium' : 'light', fail: () => {} });
+    // 屏幕边缘金光闪烁
+    this.setData({ achvFlash: `achv-flash-on tier-${item.tier}` });
+    setTimeout(() => this.setData({ achvFlash: '' }), 1000);
+    // HUD 计数弹跳
+    this.setData({ achvCount: this.core.achievements.length, achvCountBump: false });
+    setTimeout(() => this.setData({ achvCountBump: true }), 30);
+    const id = item.id;
+    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(t => t.id !== id) }), 3400);
   },
 
   openAchievements() {
@@ -288,7 +300,8 @@ Page({
       this.setData({ modal: 'ending', ending: outcome.ending, endingChart: this.buildChartData(outcome.ending.examScores, -1, `四年成长轨迹 · 毕业均分 ${outcome.ending.score}`) });
     } else if (outcome && outcome.semesterResult) {
       const scores = outcome.semesterResult.examScores || this.core.examScores;
-      this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName, semesterChart: this.buildChartData(scores, scores.length - 1) });
+      const semesterAchv = this.core.achievementLog.filter(entry => entry.semester === outcome.semesterResult.semester).map(entry => achievementById(entry.id)).filter(Boolean).map(item => ({ id: item.id, icon: item.icon, name: item.name, tierColor: (TIER_META[item.tier] || TIER_META.bronze).color, tier: item.tier }));
+      this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName, semesterChart: this.buildChartData(scores, scores.length - 1), semesterAchv });
     }
   },
   nextSemester() { this.setData({ modal: '' }); },

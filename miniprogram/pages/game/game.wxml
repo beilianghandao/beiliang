@@ -13,13 +13,15 @@
     <view class="stats-row"><view wx:for="{{statsArray}}" wx:key="key" class="stat-chip"><text class="stat-icon" style="color:{{item.color}}">{{item.icon}}</text><text>{{item.name}}</text><text class="stat-number">{{item.value}}</text></view></view>
   </view>
 
-  <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 64 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view><view class="achv-count">已解锁成就 {{achvCount}} / {{achvTotal}}</view></view>
+  <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 64 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view><view class="achv-count {{achvCountBump ? 'bump' : ''}}">已解锁成就 {{achvCount}} / {{achvTotal}}</view></view>
 
-  <!-- 成就解锁全屏飘条 -->
+  <!-- 成就解锁：屏幕金光 + 全屏飘条 -->
+  <view class="achv-flash {{achvFlash}}"></view>
   <view class="achv-layer">
-    <view wx:for="{{achvToasts}}" wx:key="id" class="achv-toast">
-      <view class="achv-ribbon"><text class="achv-tag">ACHIEVEMENT UNLOCKED</text></view>
-      <view class="achv-main"><view class="achv-icon" style="color:{{item.tierColor}};border-color:{{item.tierColor}}">{{item.icon}}</view><view class="achv-info"><view class="achv-name">{{item.name}}</view><view class="achv-desc">{{item.desc}}</view></view><view class="achv-tier" style="background:{{item.tierColor}}">{{item.tierLabel}}级成就</view></view>
+    <view wx:for="{{achvToasts}}" wx:key="id" class="achv-toast {{item.gold ? 'tier-gold' : item.tier === 'silver' ? 'tier-silver' : 'tier-bronze'}}">
+      <view class="achv-ribbon"><text class="achv-tag">ACHIEVEMENT UNLOCKED</text><text class="achv-ribbon-title">成就解锁</text></view>
+      <view class="achv-main"><view class="achv-icon" style="color:{{item.tierColor}};border-color:{{item.tierColor}}"><text>{{item.icon}}</text></view><view class="achv-info"><view class="achv-name">{{item.name}}</view><view class="achv-desc">{{item.desc}}</view></view><view class="achv-tier" style="background:{{item.tierColor}}">{{item.tierLabel}}级成就</view></view>
+      <block wx:if="{{item.gold}}"><view wx:for="{{[1,2,3,4,5,6,7,8,9,10]}}" wx:for-item="n" wx:key="*this" class="confetti c{{n}}"></view></block>
     </view>
   </view>
 
@@ -95,6 +97,7 @@
 
     <view wx:if="{{modal === 'semester'}}" class="small-panel"><view class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</view><view class="panel-kicker">SEMESTER COMPLETE</view><view class="panel-title">{{semesterResult.semesterName}} 结束</view><view class="score-ring"><text>{{semesterResult.score}}</text><text class="score-label">期末成绩</text></view>
       <view class="semester-chart"><view class="chart-title">学期成绩柱状对比</view><view class="chart-bars"><view wx:for="{{semesterChart.bars}}" wx:key="label" class="chart-col {{item.current ? 'current' : ''}}"><text class="chart-value">{{item.value}}</text><view class="chart-bar" style="height:{{item.height}}rpx"></view><text class="chart-label">{{item.label}}</text></view></view><view class="chart-caption {{semesterChart.deltaClass}}">{{semesterChart.caption}}</view></view>
+      <view wx:if="{{semesterAchv.length}}" class="semester-achv"><view class="semester-achv-title">本学期新解锁成就 × {{semesterAchv.length}}</view><view class="semester-achv-chips"><view wx:for="{{semesterAchv}}" wx:key="id" class="achv-chip {{item.tier === 'gold' ? 'tier-gold' : ''}}"><text class="achv-chip-icon" style="color:{{item.tierColor}}">{{item.icon}}</text><text>{{item.name}}</text></view></view></view>
       <view class="exam-desc">假期里你好好休整了一番，精力大幅恢复。接下来是 {{nextSemesterName}}。</view><view class="exam-rule"><text>答对</text><text class="exam-points">{{semesterResult.correct}} / 5 题</text><text>超时</text><text class="exam-points">{{semesterResult.timeouts || 0}} 题</text></view><view class="exam-rule"><text>已完成学期</text><text class="exam-points">{{semester}} / 8</text><text>已解锁成就</text><text class="exam-points">{{achvCount}} / {{achvTotal}}</text></view><button class="primary-button" bindtap="nextSemester">进入{{nextSemesterName}} →</button><button class="text-button" bindtap="openAchievements">查看成就图鉴</button></view>
 
     <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view>

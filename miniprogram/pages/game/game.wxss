@@ -44,18 +44,48 @@
 .scene-full-art{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1}
 .scene-mode .story-panel,.scene-mode .reply-panel{position:relative;z-index:2;margin:auto;box-shadow:0 30rpx 90rpx rgba(10,18,26,.5)}
 
-/* ===== 成就全屏飘条 ===== */
+/* ===== 成就全屏飘条（增强反馈版） ===== */
 .achv-layer { position: fixed; z-index: 40; top: calc(env(safe-area-inset-top) + 20rpx); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 14rpx; pointer-events: none; }
-.achv-toast { width: 640rpx; max-width: calc(100vw - 40rpx); background: rgba(255,253,243,.97); border: 1rpx solid #d9c58a; border-radius: 18rpx; box-shadow: 0 24rpx 70rpx rgba(30,46,33,.45); overflow: hidden; animation: achv-in .55s cubic-bezier(.2,.9,.25,1.08) both; }
-.achv-ribbon { padding: 10rpx 24rpx; background: linear-gradient(90deg,#c49743,#e3c26f 55%,#c49743); color: #fffdf0; }
+.achv-toast { position: relative; width: 660rpx; max-width: calc(100vw - 40rpx); background: rgba(255,253,243,.98); border: 1rpx solid #d9c58a; border-radius: 20rpx; box-shadow: 0 26rpx 80rpx rgba(30,46,33,.5); overflow: visible; animation: achv-pop-in .62s cubic-bezier(.2,.9,.3,1.16) both; }
+.achv-toast.tier-gold { box-shadow: 0 26rpx 80rpx rgba(30,46,33,.5), 0 0 70rpx rgba(196,151,67,.35); animation-name: achv-pop-in-gold; }
+.achv-ribbon { position: relative; padding: 12rpx 26rpx; background: linear-gradient(90deg,#b08d57,#d8b98a 55%,#b08d57); color: #fffdf0; display: flex; align-items: center; justify-content: space-between; gap: 20rpx; border-radius: 19rpx 19rpx 0 0; overflow: hidden; }
+.achv-toast.tier-silver .achv-ribbon { background: linear-gradient(90deg,#7d94ab,#bcccdc 55%,#7d94ab); }
+.achv-toast.tier-gold .achv-ribbon { background: linear-gradient(90deg,#b3842e,#f0cf6d 55%,#b3842e); }
+.achv-ribbon:after { content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%; background: linear-gradient(105deg,transparent,rgba(255,255,255,.5),transparent); animation: ribbon-shine 2.2s ease .3s infinite; }
 .achv-tag { font-size: 17rpx; letter-spacing: 5rpx; }
-.achv-main { display: flex; align-items: center; gap: 20rpx; padding: 18rpx 24rpx; }
-.achv-icon { flex: 0 0 auto; width: 64rpx; height: 64rpx; border: 3rpx solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: bold 33rpx serif; background: #fffef7; }
+.achv-ribbon-title { font: bold 24rpx "KaiTi",serif; letter-spacing: 6rpx; }
+.achv-main { display: flex; align-items: center; gap: 22rpx; padding: 22rpx 28rpx; }
+.achv-icon { flex: 0 0 auto; width: 76rpx; height: 76rpx; border: 3rpx solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: bold 38rpx serif; background: #fffef7; animation: icon-pop .6s cubic-bezier(.2,.9,.3,1.4) .1s both; }
+.achv-toast.tier-gold .achv-icon { box-shadow: 0 0 0 8rpx rgba(196,151,67,.1), 0 0 40rpx rgba(196,151,67,.4); animation: icon-pop-glow .6s cubic-bezier(.2,.9,.3,1.4) .1s both; }
 .achv-info { flex: 1; min-width: 0; }
-.achv-name { font-size: 26rpx; font-weight: 600; color: #3c4f45; }
-.achv-desc { font-size: 19rpx; color: #92978c; margin-top: 5rpx; }
-.achv-tier { flex: 0 0 auto; padding: 7rpx 16rpx; border-radius: 20rpx; color: #fffdf0; font-size: 18rpx; }
-@keyframes achv-in { from { transform: translateY(-150%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.achv-name { font-size: 30rpx; font-weight: 600; color: #3c4f45; }
+.achv-desc { font-size: 20rpx; color: #92978c; margin-top: 6rpx; }
+.achv-tier { flex: 0 0 auto; padding: 8rpx 18rpx; border-radius: 22rpx; color: #fffdf0; font-size: 19rpx; }
+@keyframes achv-pop-in { from { transform: translateY(-150%) scale(.86); opacity: 0; } 60% { transform: translateY(14rpx) scale(1.02); opacity: 1; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes achv-pop-in-gold { from { transform: translateY(-160%) scale(.8) rotate(-1.5deg); opacity: 0; } 55% { transform: translateY(16rpx) scale(1.04) rotate(.6deg); opacity: 1; } to { transform: translateY(0) scale(1) rotate(0); opacity: 1; } }
+@keyframes ribbon-shine { 0% { left: -60%; } 55%,100% { left: 120%; } }
+@keyframes icon-pop { from { transform: scale(0) rotate(-90deg); } 70% { transform: scale(1.18) rotate(6deg); } to { transform: scale(1) rotate(0); } }
+@keyframes icon-pop-glow { from { transform: scale(0) rotate(-90deg); } 70% { transform: scale(1.22) rotate(6deg); } to { transform: scale(1) rotate(0); } }
+/* 金级成就粒子彩带 */
+.confetti { position: absolute; top: 8rpx; left: 50%; width: 11rpx; height: 17rpx; border-radius: 3rpx; opacity: 0; animation: confetti-fall 1.5s ease-out .35s forwards; pointer-events: none; }
+.confetti.c1 { --cx: -300rpx; --cy: 170rpx; background: #c49743; }
+.confetti.c2 { --cx: -230rpx; --cy: 215rpx; background: #e3c26f; }
+.confetti.c3 { --cx: -160rpx; --cy: 245rpx; background: #a57b9c; }
+.confetti.c4 { --cx: -90rpx; --cy: 230rpx; background: #5b9272; }
+.confetti.c5 { --cx: -15rpx; --cy: 265rpx; background: #c96b4f; }
+.confetti.c6 { --cx: 60rpx; --cy: 230rpx; background: #5d7ea8; }
+.confetti.c7 { --cx: 130rpx; --cy: 250rpx; background: #c49743; }
+.confetti.c8 { --cx: 200rpx; --cy: 215rpx; background: #e3c26f; }
+.confetti.c9 { --cx: 270rpx; --cy: 180rpx; background: #ae7b9f; }
+.confetti.c10 { --cx: 340rpx; --cy: 145rpx; background: #b08d57; }
+@keyframes confetti-fall { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--cx),var(--cy)) rotate(360deg); opacity: 0; } }
+/* 屏幕边缘金光闪烁 */
+.achv-flash { position: fixed; z-index: 39; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 46%, rgba(196,151,67,.2) 78%, rgba(196,151,67,.4) 100%); }
+.achv-flash.achv-flash-on { animation: screen-flash 1s ease-out; }
+.achv-flash.tier-bronze.achv-flash-on { animation-duration: .6s; animation-name: screen-flash-soft; }
+.achv-flash.tier-gold { background: radial-gradient(ellipse at center, transparent 38%, rgba(196,151,67,.3) 72%, rgba(227,194,111,.6) 100%); }
+@keyframes screen-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes screen-flash-soft { 0% { opacity: 0; } 20% { opacity: .6; } 100% { opacity: 0; } }
 
 /* ===== 学期成绩柱状对比 ===== */
 .semester-chart { margin: 24rpx 0; padding: 22rpx 26rpx; background: #f4f0e5; border-radius: 18rpx; }
@@ -99,3 +129,13 @@
 .achv-cell-bar { height: 6rpx; background: #e6e1d2; border-radius: 5rpx; margin-top: 12rpx; overflow: hidden; }
 .achv-cell-bar view { height: 100%; background: #9db98a; }
 .achv-cell.on .achv-cell-bar view { background: #c49743; }
+
+/* HUD 计数弹跳 + 结算页新成就汇总 */
+.achv-count.bump { animation: count-bump .6s ease; }
+@keyframes count-bump { 0%,100% { transform: scale(1); } 30% { transform: scale(1.22); color: #f0cf6d; } }
+.semester-achv { margin: 22rpx 0; padding: 22rpx 24rpx; background: linear-gradient(130deg,#f6efdd,#f3e9cf); border: 1rpx solid #e0cf9c; border-radius: 18rpx; }
+.semester-achv-title { font-size: 20rpx; color: #9b774d; letter-spacing: 3rpx; }
+.semester-achv-chips { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 16rpx; }
+.achv-chip { display: flex; align-items: center; gap: 10rpx; padding: 10rpx 20rpx; border-radius: 24rpx; background: #fffdf3; border: 1rpx solid #e5d8b0; font-size: 21rpx; color: #43564b; animation: achv-pop-in .5s cubic-bezier(.2,.9,.3,1.2) both; }
+.achv-chip.tier-gold { border-color: #d8b45c; box-shadow: 0 0 20rpx rgba(196,151,67,.16); }
+.achv-chip-icon { font: bold 22rpx serif; }

@@ -1,5 +1,5 @@
 const { CHARACTERS, STAT_META, EVENTS, NPCS, ENDINGS, getExamQuestions, semesterLabel } = CampusRequire('content');
-const { ACHIEVEMENTS, buildAchievementList } = CampusRequire('achievements');
+const { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, achievementById, buildAchievementList } = CampusRequire('achievements');
 const { GameCore, EXAM_QUESTION_MS } = CampusRequire('core');
 const { CampusRenderer, drawSceneArt, preloadStandees } = CampusRequire('renderer');
 const { CampusWorld } = CampusRequire('world');
@@ -87,20 +87,81 @@ function updateHUD() {
   $('#exam-button').classList.toggle('hidden', !core.examReady);
 }
 
-// ---- 成就全屏飘条 ----
+// ---- 成就全屏飘条（错峰弹出 + 音效 + 屏幕金光 + 计数弹跳）----
 const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' } };
 
 function drainAchievements() {
+  let index = 0;
   let item;
   while ((item = core.consumePendingAchievement())) {
-    const tier = TIER_META[item.tier] || TIER_META.bronze;
-    const toast = document.createElement('div');
-    toast.className = 'achv-toast';
-    toast.innerHTML = `<div class="achv-ribbon"><span class="achv-tag">ACHIEVEMENT UNLOCKED</span></div>
-      <div class="achv-main"><span class="achv-icon" style="color:${tier.color};border-color:${tier.color}">${item.icon}</span><div class="achv-info"><b>${item.name}</b><small>${item.desc}</small></div><span class="achv-tier" style="background:${tier.color}">${tier.label}级成就</span></div>`;
-    $('#achv-layer').appendChild(toast);
-    setTimeout(() => { toast.classList.add('achv-out'); setTimeout(() => toast.remove(), 500); }, 2800);
+    const captured = item;
+    setTimeout(() => showAchvToast(captured), index * 340);
+    index++;
   }
+}
+
+function showAchvToast(item) {
+  const tier = TIER_META[item.tier] || TIER_META.bronze;
+  const confetti = item.tier === 'gold' ? Array.from({ length: 10 }, (_, i) => `<i class="confetti c${i + 1}"></i>`).join('') : '';
+  const toast = document.createElement('div');
+  toast.className = `achv-toast tier-${item.tier}`;
+  toast.innerHTML = `<div class="achv-ribbon"><span class="achv-tag">ACHIEVEMENT UNLOCKED</span><b class="achv-ribbon-title">成就解锁</b></div>
+    <div class="achv-main"><span class="achv-icon" style="color:${tier.color};border-color:${tier.color}"><i>${item.icon}</i></span><div class="achv-info"><b>${item.name}</b><small>${item.desc}</small></div><span class="achv-tier" style="background:${tier.color}">${tier.label}级成就</span></div>${confetti}`;
+  $('#achv-layer').appendChild(toast);
+  playAchvSound(item.tier);
+  flashScreen(item.tier);
+  bumpAchvCount();
+  setTimeout(() => { toast.classList.add('achv-out'); setTimeout(() => toast.remove(), 560); }, 3100);
+}
+
+// 成就音效：金级四音上扬琶音，银级双音，铜级短促双音（Web Audio 合成，无需素材）
+let achvAudio = null;
+function playAchvSound(tier) {
+  try {
+    achvAudio = achvAudio || new (window.AudioContext || window.webkitAudioContext)();
+    if (achvAudio.state === 'suspended') achvAudio.resume();
+    const notes = tier === 'gold' ? [523.25, 659.25, 783.99, 1046.5] : tier === 'silver' ? [587.33, 880] : [440, 587.33];
+    notes.forEach((freq, i) => {
+      const osc = achvAudio.createOscillator();
+      const gain = achvAudio.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const start = achvAudio.currentTime + i * 0.085;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(tier === 'gold' ? 0.16 : 0.1, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.34);
+      osc.connect(gain); gain.connect(achvAudio.destination);
+      osc.start(start); osc.stop(start + 0.36);
+    });
+  } catch (e) { /* 无音频环境时静默跳过 */ }
+}
+
+// 屏幕边缘金光闪烁，等级越高越亮
+function flashScreen(tier) {
+  const flash = $('#achv-flash');
+  if (!flash) return;
+  flash.classList.remove('achv-flash-on', 'tier-bronze', 'tier-silver', 'tier-gold');
+  void flash.offsetWidth;
+  flash.classList.add('achv-flash-on', `tier-${tier}`);
+  setTimeout(() => flash.classList.remove('achv-flash-on'), 1000);
+}
+
+// HUD 成就计数弹跳
+function bumpAchvCount() {
+  const el = $('#achv-count');
+  if (!el) return;
+  el.textContent = `已解锁成就 ${core.achievements.length} / ${ACHIEVEMENTS.length}`;
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+}
+
+// 结算页：本学期新解锁的成就汇总条
+function semesterAchvChipsHTML(semester) {
+  const items = core.achievementLog.filter(entry => entry.semester === semester).map(entry => achievementById(entry.id)).filter(Boolean);
+  if (!items.length) return '';
+  const chips = items.map(item => `<span class="achv-chip tier-${item.tier}"><i style="color:${(TIER_META[item.tier] || TIER_META.bronze).color}">${item.icon}</i>${item.name}</span>`).join('');
+  return `<div class="semester-achv"><div class="semester-achv-title">本学期新解锁成就 × ${items.length}</div><div class="semester-achv-chips">${chips}</div></div>`;
 }
 
 // ---- 学期成绩柱状对比 ----
@@ -264,7 +325,7 @@ function showQuestion() {
 function showSemesterResult(result) {
   const scores = result.examScores || core.examScores;
   const chart = semesterChartHTML(scores, scores.length - 1);
-  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div>${chart}<p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>超时</span><b>${result.timeouts || 0} 题</b></div><div class="exam-rule"><span>累计学期</span><b>${core.examScores.length} / 8</b><span>已解锁成就</span><b>${core.achievements.length} / ${ACHIEVEMENTS.length}</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button><button class="text-button" data-action="achv">查看成就图鉴</button></article>`);
+  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div>${chart}${semesterAchvChipsHTML(result.semester)}<p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>超时</span><b>${result.timeouts || 0} 题</b></div><div class="exam-rule"><span>累计学期</span><b>${core.examScores.length} / 8</b><span>已解锁成就</span><b>${core.achievements.length} / ${ACHIEVEMENTS.length}</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button><button class="text-button" data-action="achv">查看成就图鉴</button></article>`);
 }
 
 function showEnding(ending) {

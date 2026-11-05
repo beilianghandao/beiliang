@@ -33,6 +33,7 @@ class GameCore {
     this.achievements = [];         // 已解锁成就 id（按解锁顺序）
     this.achievementLog = [];       // 解锁记录 { id, semester, week }
     this.pendingAchievements = [];  // 待 UI 弹出全屏飘条的成就 id 队列
+    this.energyLowReached = false;  // 精力是否曾跌破 20（「极限运转」成就）
     this.log = [`与${this.character.name}一起，在青梧大学开始四年的旅程。`];
   }
 
@@ -69,6 +70,7 @@ class GameCore {
       if (k === 'energy') this.energy = clamp(this.energy + value);
       else this.stats[k] = clamp(this.stats[k] + value);
     });
+    if (this.energy < 20) this.energyLowReached = true;
     this.checkAchievements();
     return { reply: choice.reply, applied, repeat, roundIndex, roundsLength: quest.rounds.length };
   }
@@ -94,7 +96,7 @@ class GameCore {
       else this.stats[k] = clamp(this.stats[k] + value);
     });
     if (this.character.id === 'su' && !this.visited[key]) this.stats.mood = clamp(this.stats.mood + 2);
-    if (this.energy < 20) this.stats.mood = clamp(this.stats.mood - 2);
+    if (this.energy < 20) { this.stats.mood = clamp(this.stats.mood - 2); this.energyLowReached = true; }
 
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
@@ -109,18 +111,26 @@ class GameCore {
 
   // 供成就判定使用的只读快照（纯数据，便于单测）
   achievementSnapshot() {
-    const scenes = new Set(this.completed.map(key => key.split(':')[0]));
+    const sceneCounts = {};
+    this.completed.forEach(key => { const scene = key.split(':')[0]; sceneCounts[scene] = (sceneCounts[scene] || 0) + 1; });
+    const visitedValues = Object.values(this.visited);
     const statKeys = ['knowledge', 'fitness', 'mood', 'social', 'practice'];
     return {
       characterId: this.character.id,
       stats: { ...this.stats },
       energy: this.energy,
+      energyLowReached: this.energyLowReached,
       completedCount: this.completed.length,
       totalStories: Object.values(EVENTS).reduce((sum, scene) => sum + scene.quests.length, 0),
-      visitedScenes: scenes.size,
+      visitedScenes: Object.keys(sceneCounts).length,
       totalScenes: Object.keys(EVENTS).length,
+      sceneMaxCompleted: Object.keys(EVENTS).reduce((max, sceneId) => Math.max(max, sceneCounts[sceneId] || 0), 0),
+      sceneQuestTarget: Math.max(...Object.values(EVENTS).map(scene => scene.quests.length)),
+      repeatedQuests: visitedValues.filter(times => times > 1).length,
+      maxVisited: visitedValues.reduce((max, times) => Math.max(max, times), 0),
       semestersFinished: this.ending ? this.maxSemesters : this.semester - 1,
       examScores: [...this.examScores],
+      avgExamScore: this.examScores.length ? Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length) : 0,
       bestExamScore: this.bestExamScore,
       perfectExams: this.perfectExams,
       calmExams: this.calmExams,
@@ -268,7 +278,8 @@ class GameCore {
       semester: this.semester, week: this.week, completed: this.completed,
       visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40),
       achievements: this.achievements, achievementLog: this.achievementLog,
-      bestExamScore: this.bestExamScore, perfectExams: this.perfectExams, calmExams: this.calmExams
+      bestExamScore: this.bestExamScore, perfectExams: this.perfectExams, calmExams: this.calmExams,
+      energyLowReached: this.energyLowReached
     };
   }
 }
