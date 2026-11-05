@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+dist/
+.idea/
+.vscode/
+miniprogram_npm/
+generated-assets/

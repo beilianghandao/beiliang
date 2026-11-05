@@ -1,0 +1,7 @@
+page {
+  background: #f7f2e7;
+  color: #29443d;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+button::after { border: none; }
+button { font: inherit; }

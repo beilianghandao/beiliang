@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>步态对照 · 青梧大学</title>
+<style>
+  body{margin:0;background:#eef3e8;font-family:system-ui,sans-serif;color:#2c3a34}
+  h1{font-size:15px;margin:14px 18px 4px}
+  p{margin:0 18px 10px;font-size:12px;color:#5d6d63}
+  canvas{display:block;margin:0 18px 20px}
+</style>
+</head>
+<body>
+<h1>步态对照 · 一个完整步态周期（604ms 拆 6 帧）· 侧身向右</h1>
+<p>横排是同一角色相邻 100ms 的姿态，用于检查迈步、起伏、腰胯接缝。改 renderer.js 后刷新本页。</p>
+<canvas id="lab"></canvas>
+<script src="./bundle.js"></script>
+<script>
+const require = window.CampusRequire;
+const { CampusRenderer, preloadStandees } = require('renderer');
+const { CHARACTERS } = require('content');
+
+const N = 6, DT = 100, SCALE = 2.3, CW = 250, CH = 420;
+const chars = CHARACTERS.slice(0, 4);
+const canvas = document.getElementById('lab');
+canvas.width = CW * N;
+canvas.height = CH * chars.length;
+const ctx = canvas.getContext('2d');
+const r = new CampusRenderer(ctx, canvas.width, canvas.height);
+
+function draw() {
+  ctx.fillStyle = '#eef3e8';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  chars.forEach((ch, row) => {
+    const baseY = row * CH + CH - 40;
+    ctx.strokeStyle = 'rgba(90,120,90,.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, baseY + 1.5); ctx.lineTo(canvas.width, baseY + 1.5); ctx.stroke();
+
+    for (let i = 0; i < N; i++) {
+      const cx = i * CW + CW / 2;
+      const t = 8000 + i * DT;
+      // _ph = 0 让四个角色同相位，方便横向对照
+      const person = { ...ch, x: 0, y: 0, facing: 'right', moving: true, _wb: 1, _ph: 0 };
+      ctx.save();
+      ctx.translate(cx, baseY);
+      ctx.scale(SCALE, SCALE);
+      r.drawPerson(ctx, person, true, t);
+      ctx.restore();
+
+      ctx.fillStyle = '#8a9a8e';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('#' + (i + 1) + '  +' + (i * DT) + 'ms', cx, row * CH + 20);
+    }
+    ctx.fillStyle = '#3d5148';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(ch.name, 8, row * CH + 42);
+  });
+}
+
+preloadStandees(chars.map(c => c.id));
+let tries = 0;
+(function loop() {
+  draw();
+  if (tries++ < 22) setTimeout(loop, 200);
+})();
+</script>
+</body>
+</html>
