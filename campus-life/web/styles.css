@@ -16,3 +16,38 @@
 .portrait-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
 .speaker-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .profile-avatar img{width:100%;height:100%;border-radius:12px;object-fit:cover}
+
+/* 种子码与选择日志 */
+.seed-card{margin:22px 0 12px;padding:15px 18px;border:1px solid #708b742e;border-radius:15px;background:#ffffffb3;display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px #3c533f0a}
+.seed-icon{flex:0 0 auto;width:38px;height:38px;border-radius:12px;background:#f3e8d7;color:#a87b55;display:flex;align-items:center;justify-content:center;font:20px "KaiTi",serif}
+.seed-info{flex:1;display:flex;flex-direction:column;gap:5px}
+.seed-info b{font-size:15px}
+.seed-info small{font-size:12px;color:#8a9389}
+.seed-code{font:600 21px/1 "Courier New",monospace;letter-spacing:4px;color:#4f715e;background:#f4f0e5;border-radius:10px;padding:9px 12px}
+.seed-form{display:flex;gap:10px}
+.seed-input{flex:1;padding:13px 15px;border-radius:13px;border:1px solid #708b7433;background:#fffdf4;font:600 16px/1 "Courier New",monospace;letter-spacing:3px;color:#43564b;outline:none}
+.seed-input:focus{border-color:#7b9c74;box-shadow:0 0 0 3px #7b9c7426}
+.seed-apply{padding:0 22px;border-radius:13px;background:#4f715e;color:#fffdf1;font-size:14px}
+.seed-apply:hover{background:#3f5e4d}
+.seed-hint{margin:9px 0 0;font-size:12px;color:#8a9389}
+.seed-hint.error{color:#b4694f}
+.header-right{display:flex;align-items:center;gap:10px}
+.seed-pill{background:#fffdf1d9;border:1px solid #4e6f5926;border-radius:28px;padding:11px 15px;font-size:12px;letter-spacing:1px;color:#50695b;box-shadow:0 4px 16px #344d3c12}
+.panel-link{margin-top:14px;background:transparent;color:#7c8f7f;font-size:13px;letter-spacing:1px;text-decoration:underline;text-underline-offset:4px}
+.panel-link:hover{color:#4f715e}
+.log-panel{text-align:left}
+.log-panel .panel-title,.log-panel .panel-kicker{text-align:center}
+.log-list{margin-top:6px;max-height:56vh;overflow-y:auto;padding-right:4px}
+.log-entry{padding:14px 0;border-bottom:1px dashed #e0dccd}
+.log-entry:last-child{border-bottom:0}
+.log-meta{display:flex;justify-content:space-between;font-size:12px;color:#9a896e}
+.log-scene{color:#7f8d7d}
+.log-quest{margin-top:6px;font-size:15px;font-weight:600;color:#43564b}
+.log-choice{margin-top:4px;font-size:13px;line-height:1.6;color:#7e867c}
+.log-effects{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:9px}
+.log-flag{font-size:11px;color:#9aa28f}
+.log-flag.repeat{color:#b08a4e}
+.log-empty{text-align:center;color:#8a9389;font-size:14px;padding:26px 0}
+.ending-seed{margin-top:14px;font-size:12px;color:#8a9389}
+.ending-seed b{font:600 15px "Courier New",monospace;letter-spacing:2px;color:#4f715e}
+@media(max-width:760px){.seed-code{font-size:17px;letter-spacing:2px}.seed-pill{font-size:10px;padding:4px 8px;letter-spacing:0}.log-list{max-height:52vh}}

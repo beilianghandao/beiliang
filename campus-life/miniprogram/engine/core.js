@@ -1,13 +1,32 @@
-const { CHARACTERS, EVENTS, ENDINGS, getExamQuestions, semesterLabel } = require('../data/content');
+const { CHARACTERS, EVENTS, ENDINGS, EXAM_BANK, semesterLabel } = require('../data/content');
+const { createRng, decodeSeed, encodeSeed } = require('./random');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
+// 种子码必须由调用方给进来：引擎自己不掷骰子，同一个码必然复现同一局
+function resolveSeedCode(seedCode) {
+  const seed = decodeSeed(seedCode);
+  if (seed === null) throw new Error('种子码不合法');
+  return encodeSeed(seed);
+}
+
+// 按种子从题库里抽 5 题：同一套题里不重复，同一种子必然抽到同一套题
+function pickExamQuestions(rng) {
+  const pool = EXAM_BANK.slice();
+  const result = [];
+  while (result.length < 5 && pool.length) {
+    const index = Math.floor(rng() * pool.length);
+    result.push(pool.splice(index, 1)[0]);
+  }
+  return result;
+}
+
 class GameCore {
-  constructor(characterId = 'lin') {
-    this.reset(characterId);
+  constructor(characterId = 'lin', seedCode) {
+    this.reset(characterId, seedCode);
   }
 
-  reset(characterId = 'lin') {
+  reset(characterId = 'lin', seedCode) {
     this.character = CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
     this.stats = { ...this.character.stats };
     this.energy = 82;
@@ -21,7 +40,10 @@ class GameCore {
     this.currentExam = null;
     this.examScores = [];       // 每学期成绩
     this.ending = null;
-    this.log = [`与${this.character.name}一起，在青梧大学开始四年的旅程。`];
+    this.choiceLog = [];        // 结构化选择日志：每次选择记一条，供「选择日志」面板回看
+    this.seedCode = resolveSeedCode(seedCode);  // 本局的种子码：同码必然复现同一局
+    this.seed = decodeSeed(this.seedCode);
+    this.rng = createRng(this.seed);
   }
 
   get semesterName() { return semesterLabel(this.semester); }
@@ -62,7 +84,16 @@ class GameCore {
 
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
-    this.log.unshift(`${this.semesterName} · 第${this.week}周 · ${quest.title}`);
+    this.choiceLog.push({
+      semester: this.semester,
+      week: this.week,
+      sceneId,
+      sceneName: scene.name,
+      questTitle: quest.title,
+      choiceText: choice.text,
+      effects: { ...applied },
+      repeat
+    });
     this.week += 1;
     this.energy = clamp(this.energy + 10 + (this.character.id === 'jiang' ? 8 : 0));
     return { reply: choice.reply, applied, repeat, examReady: this.examReady };
@@ -70,7 +101,7 @@ class GameCore {
 
   startExam() {
     if (!this.examReady) return null;
-    this.currentExam = getExamQuestions(this.semester);
+    this.currentExam = pickExamQuestions(this.rng);
     this.examAnswers = [];
     return this.currentExam;
   }
@@ -102,7 +133,6 @@ class GameCore {
     this.currentExam = null;
     this.examAnswers = [];
     this.energy = clamp(this.energy + 40); // 假期恢复
-    this.log.unshift(`第 ${result.semester} 学期结束，成绩 ${score} 分。`);
     return { semesterResult: result, nextSemester: this.semester, nextSemesterName: semesterLabel(this.semester) };
   }
 
@@ -125,9 +155,26 @@ class GameCore {
     return {
       characterId: this.character.id, stats: this.stats, energy: this.energy,
       semester: this.semester, week: this.week, completed: this.completed,
-      visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40)
+      visited: this.visited, examScores: this.examScores, choiceLog: this.choiceLog,
+      seedCode: this.seedCode, rngState: this.rng.getState()
     };
+  }
+
+  // 从存档还原一局：种子码决定随机序列，rngState 决定序列走到了第几步，
+  // 所以还原之后继续玩，抽到的考题和结局都和存档时一模一样。
+  static restore(state) {
+    const core = new GameCore(state.characterId, state.seedCode);
+    core.stats = { ...state.stats };
+    core.energy = state.energy;
+    core.semester = state.semester;
+    core.week = state.week;
+    core.completed = state.completed.slice();
+    core.visited = { ...state.visited };
+    core.examScores = state.examScores.slice();
+    core.choiceLog = state.choiceLog.map(entry => ({ ...entry, effects: { ...entry.effects } }));
+    if (state.rngState !== undefined) core.rng.setState(state.rngState);
+    return core;
   }
 }
 
-module.exports = { GameCore, clamp };
+module.exports = { GameCore, pickExamQuestions, clamp };

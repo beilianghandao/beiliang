@@ -38,6 +38,18 @@
   </view>
 
   <view class="quote"><text class="quote-mark">“</text>{{current.quote}}<text class="quote-mark">”</text></view>
+
+  <view class="seed-card">
+    <view class="seed-icon"><text>码</text></view>
+    <view class="seed-info"><text class="seed-title">本局种子码</text><text class="seed-desc">同一个种子码，同一段四年</text></view>
+    <text class="seed-code">{{seedCode}}</text>
+  </view>
+  <view class="seed-form">
+    <input class="seed-input" value="{{seedInput}}" maxlength="6" bindinput="onSeedInput" placeholder="输入种子码复现某一局" />
+    <button class="seed-apply" bindtap="applySeed">使用</button>
+  </view>
+  <view class="seed-hint">{{seedHint}}</view>
+
   <button class="start-button" bindtap="start"><text>开启我的大学故事</text><text class="arrow">→</text></button>
   <view class="footer-note">不必成为标准答案，只需要成为你自己</view>
 </view>

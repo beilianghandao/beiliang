@@ -51,3 +51,15 @@
 .quote { text-align: center; color: #7f887d; font-family: "KaiTi", serif; font-size: 23rpx; margin: 34rpx 12rpx 26rpx; }.quote-mark { color: #b3a183; font-size: 34rpx; margin: 0 8rpx; }
 .start-button { height: 98rpx; border-radius: 20rpx; background: #426a59; color: #fffdf4; display: flex; align-items: center; justify-content: center; gap: 30rpx; font-size: 29rpx; letter-spacing: 3rpx; box-shadow: 0 12rpx 30rpx rgba(56,94,75,.23); }.start-button.button-hover { background: #365c4c; }.arrow { font-size: 38rpx; font-weight: 300; }
 .footer-note { text-align: center; margin-top: 25rpx; color: #a1a396; font-size: 19rpx; letter-spacing: 3rpx; }
+
+/* 种子码 */
+.seed-card { margin: 30rpx 0 16rpx; padding: 20rpx 22rpx; border: 1rpx solid rgba(112,139,116,.18); border-radius: 18rpx; background: rgba(255,255,250,.7); display: flex; align-items: center; box-shadow: 0 8rpx 30rpx rgba(60,83,63,.04); }
+.seed-icon { width: 60rpx; height: 60rpx; border-radius: 12rpx; background: #f3e8d7; display: flex; align-items: center; justify-content: center; font: bold 28rpx "STKaiti", "KaiTi", serif; color: #a87b55; }
+.seed-info { flex: 1; display: flex; flex-direction: column; margin-left: 18rpx; }
+.seed-title { font-size: 24rpx; font-weight: 600; }
+.seed-desc { margin-top: 6rpx; font-size: 19rpx; color: #8a9389; }
+.seed-code { font: bold 34rpx "Courier New", monospace; letter-spacing: 6rpx; color: #4f715e; background: #f4f0e5; border-radius: 12rpx; padding: 12rpx 14rpx; }
+.seed-form { display: flex; align-items: center; }
+.seed-input { flex: 1; height: 76rpx; padding: 0 20rpx; border-radius: 14rpx; border: 1rpx solid rgba(112,139,116,.2); background: #fffdf4; font: bold 28rpx "Courier New", monospace; letter-spacing: 5rpx; color: #43564b; }
+.seed-apply { margin-left: 14rpx; height: 76rpx; padding: 0 30rpx; border-radius: 14rpx; background: #4f715e; color: #fffdf1; font-size: 24rpx; line-height: 76rpx; }
+.seed-hint { margin: 12rpx 0 0; font-size: 19rpx; color: #8a9389; }

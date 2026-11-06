@@ -22,6 +22,12 @@ const YEAR_NAMES = ['大一', '大二', '大三', '大四'];
 const SEMESTER_NAMES = ['上学期', '下学期'];
 const semesterLabel = semester => `${YEAR_NAMES[Math.floor((semester - 1) / 2)]}${SEMESTER_NAMES[(semester - 1) % 2]}`;
 
+// 属性 key → 界面上的名字；精力不在 STAT_META 里，单独给它一个名字
+function statName(key) {
+  if (key === 'energy') return '精力';
+  return STAT_META[key] ? STAT_META[key].name : key;
+}
+
 const BUILDINGS = [
   { id: 'library', name: '图书馆', subtitle: '把未知，读成已知', x: 890, y: 100, w: 480, h: 250, doorX: 1130, doorY: 380, color: '#d68c69', roof: '#934f43', icon: 'LIBRARY', event: 'library' },
   { id: 'teaching', name: '明德教学楼', subtitle: '今天也要好好上课', x: 190, y: 250, w: 450, h: 240, doorX: 415, doorY: 520, color: '#e4b36f', roof: '#b9754d', icon: 'LECTURE', event: 'classroom' },
@@ -219,7 +225,7 @@ const ENDINGS = [
   { id: 'ordinary', title: '正在生长的普通大人', tag: '未来可期', text: '四年过去，你没有成为最耀眼的人，却认真走过了每一天。学位帽抛向天空的那一刻，你知道：人生才刚刚开始。', color: '#7d9275' }
 ];
 
-// 10 题题库，每学期轮换 5 题
+// 10 题题库，每次期末考按种子抽 5 题
 const EXAM_BANK = [
   { question: '面对一个没有标准答案的复杂问题，更合理的第一步是？', options: ['等待别人给出结论', '拆解问题并确认已知条件', '直接选择最熟悉的答案', '回避问题'], answer: 1 },
   { question: '团队项目临近截止却出现故障，哪种做法最有效？', options: ['隐瞒问题', '一个人承担全部工作', '同步信息并拆分验证任务', '立即放弃项目'], answer: 2 },
@@ -233,27 +239,40 @@ const EXAM_BANK = [
   { question: '大学四年最值得投资的资产是？', options: ['昂贵的外设装备', '成绩单上的数字', '可迁移的能力与真诚的关系', '社交平台上的粉丝数'], answer: 2 }
 ];
 
-function getExamQuestions(semester) {
-  const offset = ((semester - 1) * 5) % EXAM_BANK.length;
-  const result = [];
-  for (let i = 0; i < 5; i++) result.push(EXAM_BANK[(offset + i) % EXAM_BANK.length]);
-  return result;
-}
-
-module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, getExamQuestions, semesterLabel, YEAR_NAMES };
+// 从题库里按种子抽 5 题的规则放在 engine/core.js，这里只留题库内容
+module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, semesterLabel, statName, YEAR_NAMES };
 
 };
 modules['core'] = function(module, exports, require) {
-const { CHARACTERS, EVENTS, ENDINGS, getExamQuestions, semesterLabel } = require('content');
+const { CHARACTERS, EVENTS, ENDINGS, EXAM_BANK, semesterLabel } = require('content');
+const { createRng, decodeSeed, encodeSeed } = require('random');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
+// 种子码必须由调用方给进来：引擎自己不掷骰子，同一个码必然复现同一局
+function resolveSeedCode(seedCode) {
+  const seed = decodeSeed(seedCode);
+  if (seed === null) throw new Error('种子码不合法');
+  return encodeSeed(seed);
+}
+
+// 按种子从题库里抽 5 题：同一套题里不重复，同一种子必然抽到同一套题
+function pickExamQuestions(rng) {
+  const pool = EXAM_BANK.slice();
+  const result = [];
+  while (result.length < 5 && pool.length) {
+    const index = Math.floor(rng() * pool.length);
+    result.push(pool.splice(index, 1)[0]);
+  }
+  return result;
+}
+
 class GameCore {
-  constructor(characterId = 'lin') {
-    this.reset(characterId);
+  constructor(characterId = 'lin', seedCode) {
+    this.reset(characterId, seedCode);
   }
 
-  reset(characterId = 'lin') {
+  reset(characterId = 'lin', seedCode) {
     this.character = CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
     this.stats = { ...this.character.stats };
     this.energy = 82;
@@ -267,7 +286,10 @@ class GameCore {
     this.currentExam = null;
     this.examScores = [];       // 每学期成绩
     this.ending = null;
-    this.log = [`与${this.character.name}一起，在青梧大学开始四年的旅程。`];
+    this.choiceLog = [];        // 结构化选择日志：每次选择记一条，供「选择日志」面板回看
+    this.seedCode = resolveSeedCode(seedCode);  // 本局的种子码：同码必然复现同一局
+    this.seed = decodeSeed(this.seedCode);
+    this.rng = createRng(this.seed);
   }
 
   get semesterName() { return semesterLabel(this.semester); }
@@ -308,7 +330,16 @@ class GameCore {
 
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
-    this.log.unshift(`${this.semesterName} · 第${this.week}周 · ${quest.title}`);
+    this.choiceLog.push({
+      semester: this.semester,
+      week: this.week,
+      sceneId,
+      sceneName: scene.name,
+      questTitle: quest.title,
+      choiceText: choice.text,
+      effects: { ...applied },
+      repeat
+    });
     this.week += 1;
     this.energy = clamp(this.energy + 10 + (this.character.id === 'jiang' ? 8 : 0));
     return { reply: choice.reply, applied, repeat, examReady: this.examReady };
@@ -316,7 +347,7 @@ class GameCore {
 
   startExam() {
     if (!this.examReady) return null;
-    this.currentExam = getExamQuestions(this.semester);
+    this.currentExam = pickExamQuestions(this.rng);
     this.examAnswers = [];
     return this.currentExam;
   }
@@ -348,7 +379,6 @@ class GameCore {
     this.currentExam = null;
     this.examAnswers = [];
     this.energy = clamp(this.energy + 40); // 假期恢复
-    this.log.unshift(`第 ${result.semester} 学期结束，成绩 ${score} 分。`);
     return { semesterResult: result, nextSemester: this.semester, nextSemesterName: semesterLabel(this.semester) };
   }
 
@@ -371,12 +401,139 @@ class GameCore {
     return {
       characterId: this.character.id, stats: this.stats, energy: this.energy,
       semester: this.semester, week: this.week, completed: this.completed,
-      visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40)
+      visited: this.visited, examScores: this.examScores, choiceLog: this.choiceLog,
+      seedCode: this.seedCode, rngState: this.rng.getState()
     };
+  }
+
+  // 从存档还原一局：种子码决定随机序列，rngState 决定序列走到了第几步，
+  // 所以还原之后继续玩，抽到的考题和结局都和存档时一模一样。
+  static restore(state) {
+    const core = new GameCore(state.characterId, state.seedCode);
+    core.stats = { ...state.stats };
+    core.energy = state.energy;
+    core.semester = state.semester;
+    core.week = state.week;
+    core.completed = state.completed.slice();
+    core.visited = { ...state.visited };
+    core.examScores = state.examScores.slice();
+    core.choiceLog = state.choiceLog.map(entry => ({ ...entry, effects: { ...entry.effects } }));
+    if (state.rngState !== undefined) core.rng.setState(state.rngState);
+    return core;
   }
 }
 
-module.exports = { GameCore, clamp };
+module.exports = { GameCore, pickExamQuestions, clamp };
+
+};
+modules['choicelog'] = function(module, exports, require) {
+const { semesterLabel, statName } = require('content');
+
+// 把引擎记录的选择日志整理成两端共用的展示数据：最新的一次排在最前。
+// 浏览器预览和小程序都消费这份数据，保证两边看到的选择回顾完全一致。
+function buildChoiceLogView(entries) {
+  return (entries || []).slice().reverse().map((entry, index) => ({
+    id: `${entry.sceneId}-${entry.semester}-${entry.week}-${index}`,
+    semester: entry.semester,
+    semesterName: semesterLabel(entry.semester),
+    week: entry.week,
+    sceneId: entry.sceneId,
+    sceneName: entry.sceneName,
+    questTitle: entry.questTitle,
+    choiceText: entry.choiceText,
+    repeat: !!entry.repeat,
+    repeatLabel: entry.repeat ? '重复体验 · 收益递减' : '首次体验',
+    effects: Object.keys(entry.effects || {}).map(key => ({
+      key,
+      name: statName(key),
+      value: entry.effects[key]
+    }))
+  }));
+}
+
+module.exports = { buildChoiceLogView };
+
+};
+modules['random'] = function(module, exports, require) {
+// 种子码：6 位、30 bit，用 32 个没有歧义字符（去掉 0 O 1 I）编码，短到能手打。
+const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const CODE_LENGTH = 6;
+const SEED_SPACE = 32 ** CODE_LENGTH;
+
+// 种子码 → 种子；非法输入返回 null
+function decodeSeed(code) {
+  if (typeof code !== 'string') return null;
+  const text = code.trim().toUpperCase().replace(/[\s-]/g, '');
+  if (text.length !== CODE_LENGTH) return null;
+  let seed = 0;
+  for (let i = 0; i < text.length; i++) {
+    const index = CODE_ALPHABET.indexOf(text[i]);
+    if (index < 0) return null;
+    seed = seed * 32 + index;
+  }
+  return seed;
+}
+
+// 种子 → 种子码
+function encodeSeed(seed) {
+  let value = ((seed >>> 0) % SEED_SPACE);
+  let code = '';
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    code = CODE_ALPHABET[value % 32] + code;
+    value = Math.floor(value / 32);
+  }
+  return code;
+}
+
+// 确定性随机序列：同一个种子必然给出同一串数（mulberry32）
+// 额外给出 getState / setState，好让一局的中途状态可以被存档、还原。
+function createRng(seed) {
+  let state = seed >>> 0;
+  const next = function () {
+    state = (state + 0x6D2B79F5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+  next.getState = () => state;
+  next.setState = nextState => { state = nextState >>> 0; };
+  return next;
+}
+
+// 铸一局的新种子码：这是全局唯一需要熵的地方，熵由调用方递进来，
+// 所以引擎与数据层自己不含任何非确定性随机来源。
+function randomSeedCode(entropy) {
+  if (typeof entropy !== 'function') throw new Error('randomSeedCode 需要一个熵源');
+  return encodeSeed(Math.floor(entropy() * SEED_SPACE));
+}
+
+const SEED_HINT_BLANK = '留空则随机开启新的一局；填入同学的种子码，可以复现他的四年';
+const SEED_HINT_VALID = '这一局将按这个种子码开始，同码可复现';
+const SEED_HINT_INVALID = '种子码不合法，请输入 6 位字母数字（不含 0 O 1 I）';
+
+// 界面输入的种子码 → 这一局真正使用的种子码。浏览器与小程序共用这一份规则。
+// 留空表示「用这一局自动生成的码」，合法就照用，非法就把原因说清楚。
+function resolveSeedInput(input) {
+  const value = String(input || '').trim();
+  if (!value) return { blank: true };
+  const seed = decodeSeed(value);
+  if (seed === null) return { error: SEED_HINT_INVALID };
+  return { code: encodeSeed(seed), hint: SEED_HINT_VALID };
+}
+
+// 玩家按下「使用」时用：留空就摇一局新的种子码，合法就照用，非法就报错。
+function applySeedInput(input, entropy) {
+  const result = resolveSeedInput(input);
+  if (result.blank) return { code: randomSeedCode(entropy), hint: SEED_HINT_BLANK };
+  if (result.error) return { error: SEED_HINT_INVALID };
+  return result;
+}
+
+module.exports = {
+  CODE_ALPHABET, CODE_LENGTH, decodeSeed, encodeSeed, createRng, randomSeedCode,
+  resolveSeedInput, applySeedInput, SEED_HINT_BLANK, SEED_HINT_VALID, SEED_HINT_INVALID
+};
 
 };
 modules['renderer'] = function(module, exports, require) {

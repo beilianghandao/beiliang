@@ -1,19 +1,28 @@
-const { STAT_META, EVENTS, semesterLabel } = require('../../data/content');
+const { STAT_META, EVENTS, semesterLabel, statName } = require('../../data/content');
 const { GameCore } = require('../../engine/core');
+const { buildChoiceLogView } = require('../../engine/choicelog');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
 
 Page({
-  data: { modal: '', nearby: null, joyX: 0, joyY: 0, examReady: false, sceneProgress: [] },
+  data: { modal: '', nearby: null, joyX: 0, joyY: 0, examReady: false, sceneProgress: [], logEntries: [], seedCode: '' },
 
   onLoad() {
-    this.core = new GameCore(getApp().globalData.characterId);
+    try {
+      this.core = new GameCore(getApp().globalData.characterId, getApp().globalData.seedCode);
+    } catch (error) {
+      // 种子码不合法：说清楚原因并退回选角页，不让页面白屏
+      this.broken = true;
+      wx.showModal({ title: '种子码不合法', content: error.message, showCancel: false, success: () => wx.navigateBack({ delta: 1 }) });
+      return;
+    }
     this.world = new CampusWorld();
     this.syncData();
     this.setData({ character: this.core.character, characterInitial: this.core.character.name.charAt(0), maxWeeks: this.core.weeksPerSemester });
   },
 
   onReady() {
+    if (this.broken) return;
     const query = wx.createSelectorQuery();
     query.select('#campus').fields({ node: true, size: true }).exec(res => {
       if (!res[0]) return;
@@ -54,7 +63,7 @@ Page({
       statsArray, energy: this.core.energy, week: this.core.week, semester: this.core.semester,
       semesterName: this.core.semesterName, weekLabel: Math.min(this.core.week, this.core.weeksPerSemester),
       completed: this.core.completed, progress: this.core.totalProgress,
-      examReady: this.core.examReady
+      examReady: this.core.examReady, seedCode: this.core.seedCode
     });
   },
 
@@ -109,7 +118,7 @@ Page({
   joyEnd() { this.world.setInput(0, 0); this.joyTouch = null; this.setData({ joyX: 0, joyY: 0 }); },
 
   interact() {
-    if (this.data.modal) return;
+    if (this.broken || this.data.modal) return;
     const nearby = this.world.nearby;
     if (!nearby) { wx.showToast({ title: '走近建筑或同学再试试吧', icon: 'none' }); return; }
     if (this.core.examReady) { this.showExamIntro(); return; }
@@ -146,7 +155,7 @@ Page({
   chooseStory(event) {
     const result = this.core.applyChoice(this.sceneId, this.questIndex, Number(event.currentTarget.dataset.index));
     if (!result) return;
-    const effects = Object.keys(result.applied).map(key => ({ key, name: key === 'energy' ? '精力' : STAT_META[key].name, value: result.applied[key] }));
+    const effects = Object.keys(result.applied).map(key => ({ key, name: statName(key), value: result.applied[key] }));
     wx.setStorageSync('campus-progress', this.core.serialize());
     this.syncData();
     this.setData({ modal: 'reply', reply: result.reply, effects });
@@ -156,6 +165,19 @@ Page({
 
   openGuide() { this.world.setInput(0, 0); this.setData({ modal: 'guide' }); },
   closeModal() { this.setData({ modal: '' }); },
+
+  // 选择日志：随时翻看做过哪些选择、影响了什么；关掉后回到打开日志前的地方
+  openLog() {
+    this.world.setInput(0, 0);
+    this.logReturnModal = this.data.modal;
+    this.setData({ modal: 'log', logEntries: buildChoiceLogView(this.core.choiceLog) });
+  },
+  closeLog() {
+    const back = this.logReturnModal || '';
+    this.logReturnModal = '';
+    this.setData({ modal: back, logEntries: [] });
+    if (back === 'scene' || back === 'quest' || back === 'reply') setTimeout(() => this.drawSceneArt(), 80);
+  },
 
   showExamIntro() {
     this.world.setInput(0, 0);

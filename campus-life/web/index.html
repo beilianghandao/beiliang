@@ -20,13 +20,23 @@
     <div class="section-heading"><b>选择你的入学角色</b><small>每个选择，都有新的故事</small></div>
     <section id="character-grid" class="character-grid"></section>
     <blockquote id="character-quote"></blockquote>
+    <div class="seed-card">
+      <div class="seed-icon">码</div>
+      <div class="seed-info"><b>本局种子码</b><small>同一个种子码，同一段四年</small></div>
+      <code id="seed-code" class="seed-code">------</code>
+    </div>
+    <div class="seed-form">
+      <input id="seed-input" class="seed-input" maxlength="6" autocomplete="off" spellcheck="false" placeholder="输入种子码复现某一局" />
+      <button id="seed-apply" class="seed-apply" type="button">使用</button>
+    </div>
+    <p id="seed-hint" class="seed-hint">本局种子码已备好；填入同学的种子码，可以复现他的四年</p>
     <button id="start-button" class="start-button">开启我的大学故事 <span>→</span></button>
     <footer>不必成为标准答案，只需要成为你自己</footer>
   </main>
 
   <main id="game-screen" class="game-page hidden">
     <canvas id="campus"></canvas><div class="top-shade"></div>
-    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><button id="guide-button" class="header-button" aria-label="校园指南">?</button></header>
+    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><div class="header-right"><span id="seed-pill" class="seed-pill" title="本局种子码"></span><button id="log-button" class="header-button" aria-label="选择日志">记</button><button id="guide-button" class="header-button" aria-label="校园指南">?</button></div></header>
     <section class="status-card"><div class="profile-row"><div id="profile-avatar" class="profile-avatar"></div><div class="profile-info"><b id="profile-name"></b><small id="profile-title"></small></div><div class="energy">精力 <b id="energy-value"></b></div></div><div class="energy-track"><i id="energy-bar"></i></div><div id="stats-row" class="stats-row"></div></section>
     <section class="quest-card"><div class="quest-label">大学四年 · 目标</div><p>探索 8 个场景 × 16 段故事，读完八个学期</p><div class="quest-progress"><i id="quest-bar"></i></div><div class="quest-meta"><span id="quest-count"></span><span id="quest-percent"></span></div></section>
     <div class="keyboard-tip">WASD / 方向键移动 · 点击地图寻路 · E 互动</div>
@@ -36,6 +46,6 @@
     <button id="exam-button" class="exam-button hidden">期末周已到达 · 进入考试 →</button>
     <div id="modal-mask" class="modal-mask hidden"><div id="modal-content"></div></div>
   </main>
-  <script src="bundle.js?v=55cdb9ed"></script><script src="app.js?v=55cdb9ed"></script>
+  <script src="bundle.js?v=1115e76f"></script><script src="app.js?v=1115e76f"></script>
 </body>
 </html>
