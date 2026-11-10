@@ -12,6 +12,10 @@ int b = 20;
 int sum = a + b;
 System.out.println(sum);
 
+
+
+
+
 // 4. if 判断
 int score = 80;
 if (score >= 60) {
