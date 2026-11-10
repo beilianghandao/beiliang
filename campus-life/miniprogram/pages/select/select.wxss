@@ -51,3 +51,17 @@
 .quote { text-align: center; color: #7f887d; font-family: "KaiTi", serif; font-size: 23rpx; margin: 34rpx 12rpx 26rpx; }.quote-mark { color: #b3a183; font-size: 34rpx; margin: 0 8rpx; }
 .start-button { height: 98rpx; border-radius: 20rpx; background: #426a59; color: #fffdf4; display: flex; align-items: center; justify-content: center; gap: 30rpx; font-size: 29rpx; letter-spacing: 3rpx; box-shadow: 0 12rpx 30rpx rgba(56,94,75,.23); }.start-button.button-hover { background: #365c4c; }.arrow { font-size: 38rpx; font-weight: 300; }
 .footer-note { text-align: center; margin-top: 25rpx; color: #a1a396; font-size: 19rpx; letter-spacing: 3rpx; }
+
+/* ===== 周目继承 ===== */
+.legacy-list { display: flex; flex-direction: column; gap: 14rpx; }
+.legacy-card { position: relative; display: flex; gap: 18rpx; padding: 20rpx 22rpx; background: rgba(255,253,246,.92); border: 2rpx solid #e9e2d2; border-radius: 18rpx; }
+.legacy-card.selected { border-color: #73917b; background: #f3f7ea; box-shadow: 0 8rpx 22rpx rgba(68,98,70,.12); }
+.legacy-card.locked { opacity: .55; background: #f7f5ee; }
+.legacy-card.plain { border-style: dashed; }
+.legacy-icon { flex: 0 0 auto; width: 56rpx; height: 56rpx; border-radius: 14rpx; color: #fffdf4; font: 26rpx "KaiTi", serif; text-align: center; line-height: 56rpx; }
+.legacy-body { flex: 1; display: flex; flex-direction: column; gap: 7rpx; min-width: 0; }
+.legacy-name { font-size: 27rpx; font-weight: 600; color: #42584b; }
+.legacy-desc { font-size: 21rpx; line-height: 1.5; color: #8f948a; }
+.legacy-effect { font-size: 21rpx; color: #a8823f; }
+.legacy-mark { position: absolute; right: 16rpx; top: 16rpx; width: 34rpx; height: 34rpx; border-radius: 50%; background: #6d8b74; color: #fff; font-size: 20rpx; text-align: center; line-height: 34rpx; }
+.legacy-tip { margin: 16rpx 0 26rpx; font-size: 20rpx; line-height: 1.6; color: #9a9f94; }

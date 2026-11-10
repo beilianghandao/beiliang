@@ -1,7 +1,8 @@
 const assert = require('assert');
-const { CHARACTERS, EVENTS, STAT_META, ENDINGS, REQUESTS, CHAIN_EVENTS, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
+const { CHARACTERS, EVENTS, STAT_META, ENDINGS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
 const { GameCore } = require('../miniprogram/engine/core');
 const { CampusWorld } = require('../miniprogram/engine/world');
+const Save = require('../miniprogram/engine/save');
 
 let passed = 0;
 function test(name, fn) {
@@ -296,6 +297,198 @@ test('每个请求都有答应与拒绝两个分支，并写明好感度变化',
       });
     });
   });
+});
+
+// ============ 周目继承 ============
+
+test('继承遗物：属性型遗物开局生效，并写进因果记录', () => {
+  const plain = new GameCore('lin');
+  const inherited = new GameCore('lin', { playthrough: 2, legacyId: 'legacy-notes' });
+  assert.strictEqual(inherited.stats.knowledge, plain.stats.knowledge + 8);
+  assert.strictEqual(inherited.playthrough, 2);
+  assert.strictEqual(inherited.legacyId, 'legacy-notes');
+  assert.strictEqual(inherited.choiceLog[0].type, 'legacy');
+  assert.strictEqual(inherited.choiceLog[0].effects.knowledge, 8);
+});
+
+test('继承道具：通讯录给所有同学初始好感，护腕每周多恢复精力', () => {
+  const book = new GameCore('lin', { legacyId: 'legacy-addressbook' });
+  assert.strictEqual(book.affinityOf('npc1'), 12);
+  assert.strictEqual(book.affinityTierOf('npc1').name, '熟悉');
+  const base = new GameCore('lin'); base.applyChoice('library', 0, 0);
+  const wrist = new GameCore('lin', { legacyId: 'legacy-wristband' }); wrist.applyChoice('library', 0, 0);
+  assert.strictEqual(wrist.energy - base.energy, 4);
+});
+
+test('没继承对应遗物时，隐藏事件是锁着的，也进不去', () => {
+  const game = new GameCore('lin');
+  const hidden = game.sceneProgress('library').filter(item => item.hidden);
+  assert.strictEqual(hidden.length, 1);
+  assert.strictEqual(hidden[0].locked, true);
+  assert.ok(hidden[0].requireText.includes('错题本'));
+  assert.strictEqual(game.applyChoice('library', hidden[0].index, 0), null);
+});
+
+test('继承遗物并完成前置任务后，隐藏事件显形且能完成', () => {
+  const game = new GameCore('lin', { playthrough: 2, legacyId: 'legacy-notes' });
+  assert.strictEqual(game.sceneProgress('library').filter(item => item.hidden)[0].locked, true, '前置任务没做时仍锁着');
+  game.applyChoice('library', 0, 0);
+  const hidden = game.sceneProgress('library').filter(item => item.hidden)[0];
+  assert.strictEqual(hidden.locked, false);
+  const result = game.applyChoice('library', hidden.index, 0);
+  assert.ok(result && result.hidden, '隐藏事件应当能正常结算');
+  assert.ok(game.hiddenCleared.includes('hidden-lib-margin'));
+  assert.ok(game.completed.includes(`library:${hidden.index}`));
+});
+
+test('每个隐藏事件都有合法选项、可接场景美术，并且绑定一件遗物', () => {
+  Object.keys(HIDDEN_EVENTS).forEach(sceneId => {
+    assert.ok(EVENTS[sceneId], `${sceneId} 场景必须存在`);
+    HIDDEN_EVENTS[sceneId].forEach(def => {
+      assert.ok(def.title && def.text, def.id);
+      assert.ok(def.choices.length >= 2, def.id);
+      assert.ok(LEGACY_OPTIONS.some(option => option.id === def.requires), `${def.id} 的遗物必须存在`);
+      def.choices.forEach(choice => {
+        Object.keys(choice.effects).forEach(key => {
+          assert.ok(key === 'energy' || Object.keys(STAT_META).includes(key), `${def.id}:${key}`);
+        });
+      });
+    });
+  });
+  // 每件遗物都要能打开一个隐藏事件，继承才有意义
+  LEGACY_OPTIONS.forEach(option => {
+    const opened = Object.keys(HIDDEN_EVENTS).some(sceneId => HIDDEN_EVENTS[sceneId].some(def => def.id === option.hiddenEvent));
+    assert.ok(opened, option.id);
+  });
+});
+
+// ============ 因果记录 ============
+
+test('每次选择都会写进 choiceLog，并带上当场的影响', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('library', 0, 0);
+  const entry = game.choiceLog[game.choiceLog.length - 1];
+  assert.strictEqual(entry.type, 'quest');
+  assert.strictEqual(entry.title, '闭馆音乐响起之前');
+  assert.ok(entry.choice.length > 0);
+  assert.ok(entry.effects.knowledge > 0);
+  assert.ok(entry.tags.includes('学识'));
+  assert.ok(entry.at.includes('第'));
+  assert.strictEqual(entry.semester, 1);
+});
+
+test('因果记录覆盖任务、请求、连锁后果三类选择点', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('classroom', 0, 2);   // 埋下连锁
+  game.applyChoice('library', 0, 0);     // 推进一周，点名发作
+  game.resolveChain('roll-call', 0);
+  const request = game.pendingRequests()[0];
+  assert.ok(request, '应该有请求上门');
+  game.resolveRequest(request.id, 0);
+  const types = game.choiceLog.map(entry => entry.type);
+  ['quest', 'chain', 'request'].forEach(type => assert.ok(types.includes(type), type));
+  const requestEntry = game.choiceLog.find(entry => entry.type === 'request');
+  assert.ok(requestEntry.affinity && requestEntry.affinity.name, '关系类选择要记下好感变化');
+});
+
+test('埋下的后果发作后，会回头标注在当初那个选择上', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('classroom', 0, 2);
+  const origin = game.choiceLog.find(entry => entry.title === '被点名的三分钟');
+  assert.ok(origin, '产生后果的那次选择必须留在记录里');
+  assert.strictEqual(origin.consequences.length, 1);
+  assert.strictEqual(origin.consequences[0].fired, false);
+  assert.ok(origin.note.includes('点名'));
+  game.applyChoice('library', 0, 0);
+  assert.strictEqual(origin.consequences[0].fired, true);
+});
+
+test('causeReport 汇总属性总量、分类计数与还没发作的后果', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('classroom', 0, 2);
+  const report = game.causeReport();
+  assert.strictEqual(report.counts.quest, 1);
+  assert.ok(report.totals.mood > 0);
+  assert.strictEqual(report.pending.length, 1, '延迟队列里的后果要提前告知');
+  assert.ok(report.pending[0].title.includes('点名'));
+  assert.strictEqual(report.entries.length, 1);
+  assert.ok(report.hidden.total >= 5);
+});
+
+test('考试也会写进因果记录，期末成绩算作学业影响', () => {
+  const game = new GameCore('lin');
+  ['library:0', 'library:1', 'canteen:0', 'canteen:1'].forEach(pair => {
+    const [scene, quest] = pair.split(':'); game.applyChoice(scene, Number(quest), 0);
+  });
+  const questions = game.startExam();
+  questions.forEach(q => game.answerExam(q.answer));
+  game.finishExam();
+  const examEntry = game.choiceLog.find(entry => entry.type === 'exam');
+  assert.ok(examEntry);
+  assert.ok(examEntry.choice.includes('答对'));
+});
+
+test('存档字段包含周目、继承遗物与整份因果记录', () => {
+  const game = new GameCore('lin', { playthrough: 2, legacyId: 'legacy-letter' });
+  game.applyChoice('library', 0, 0);
+  const saved = game.serialize();
+  assert.strictEqual(saved.playthrough, 2);
+  assert.strictEqual(saved.legacyId, 'legacy-letter');
+  assert.ok(Array.isArray(saved.choiceLog) && saved.choiceLog.length >= 2);
+  assert.ok(Array.isArray(saved.hiddenCleared));
+});
+
+// ============ 跨周目存档 ============
+
+function fakeStore() {
+  const data = {};
+  return { type: 'fake', get: key => (key in data ? data[key] : null), set: (key, value) => { data[key] = value; }, remove: key => { delete data[key]; } };
+}
+
+test('存档：一局结束后记下周目数、最高属性与隐藏事件，并据此解锁继承项', () => {
+  const store = fakeStore();
+  const game = new GameCore('chen');
+  game.stats = { knowledge: 78, fitness: 40, mood: 50, social: 30, practice: 55 };
+  game.ending = { id: 'scholar', title: '群星之间的求知者', tag: '学术深造', score: 88 };
+  game.hiddenCleared = ['hidden-lib-margin'];
+  const meta = Save.recordRun(game, store);
+  assert.strictEqual(meta.playthroughs, 1);
+  assert.strictEqual(meta.lastEnding.id, 'scholar');
+  assert.strictEqual(Save.readMeta(store).bestStats.knowledge, 78, '最高属性要落盘');
+  assert.ok(meta.hiddenEvents.includes('hidden-lib-margin'));
+  const options = Save.legacyOptions(meta);
+  assert.strictEqual(options.find(option => option.id === 'legacy-notes').unlocked, true);
+  assert.strictEqual(options.find(option => option.id === 'legacy-wristband').unlocked, false);
+  assert.strictEqual(options.find(option => option.id === 'legacy-letter').unlocked, true, '毕业即解锁的保底项');
+  assert.strictEqual(Save.defaultLegacy(meta), 'legacy-notes');
+});
+
+test('存档：第二周目结束后周目数继续累加，最高属性只升不降', () => {
+  const store = fakeStore();
+  const first = new GameCore('lin');
+  first.stats = { knowledge: 72, fitness: 50, mood: 50, social: 50, practice: 50 };
+  first.ending = { id: 'scholar', title: 'A', tag: 't', score: 80 };
+  Save.recordRun(first, store);
+  const second = new GameCore('lin', { playthrough: 2, legacyId: 'legacy-notes' });
+  second.stats = { knowledge: 60, fitness: 90, mood: 50, social: 50, practice: 50 };
+  second.ending = { id: 'sunshine', title: 'B', tag: 't', score: 90 };
+  const meta = Save.recordRun(second, store);
+  assert.strictEqual(meta.playthroughs, 2);
+  assert.strictEqual(meta.bestStats.knowledge, 72, '旧的最好成绩不能被覆盖');
+  assert.strictEqual(meta.bestStats.fitness, 90);
+  assert.deepStrictEqual(meta.endings.sort(), ['scholar', 'sunshine']);
+});
+
+test('存档：清空后回到第一周目状态', () => {
+  const store = fakeStore();
+  const game = new GameCore('lin');
+  game.ending = { id: 'ordinary', title: 'C', tag: 't', score: 60 };
+  Save.recordRun(game, store);
+  assert.strictEqual(Save.readMeta(store).playthroughs, 1);
+  Save.clearMeta(store);
+  const meta = Save.readMeta(store);
+  assert.strictEqual(meta.playthroughs, 0);
+  assert.strictEqual(Save.defaultLegacy(meta), null, '没走完过任何一局时没有可继承的东西');
 });
 
 console.log(`\nAll ${passed} gameplay tests passed.`);

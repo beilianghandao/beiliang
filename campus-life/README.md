@@ -14,6 +14,9 @@
 - 8 个学期覆盖完整大学四年：每学期 4 周行动 + 1 次期末考，假期恢复精力
 - 期末考 5 道情境题（10 题题库按学期轮换）+ 日常成长计分，学期结算面板
 - 大四下学期结束后按四年积累进入毕业结局：学术深造、学生领袖、创新实践、温暖人生、未来可期
+- **周目继承**：毕业时把本局成绩并入跨周目存档（最高属性 / 结局 / 隐藏事件），下一周目开局可以继承一项遗物（属性、道具、每周精力或全员好感），继承哪一件由玩家在角色页选择
+- **隐藏事件**：5 个场景各藏一段只有继承对应遗物才会显形的事件，并带自己的解锁条件（继承遗物 + 完成该场景前置任务），完成后计入隐藏事件进度
+- **因果面板**：`choiceLog` 记录每一次选择、当场的影响，以及它几周后引发的连锁后果；右上角「因」随时按学期翻看，还没发作的后果会提前列出来
 - GitHub Actions 自动运行核心逻辑、语法与构建检查
 
 ## 快速体验
@@ -40,17 +43,52 @@ npm start
 ```text
 miniprogram/
   data/content.js          # 角色、建筑、NPC、场景美术、16 段任务剧情、题库与结局内容
+                           # 以及 LEGACY_OPTIONS（周目继承项）与 HIDDEN_EVENTS（隐藏事件）
   engine/core.js           # 属性、学期周数、期末考试和毕业结局逻辑
+                           # 同时负责周目继承、隐藏事件解锁与 choiceLog 因果记录
+  engine/save.js           # 跨周目存档：周目数、最高属性、结局、隐藏事件、上一局因果摘要
   engine/renderer.js       # Canvas 校园、人物与场景插画背景绘制
   engine/world.js          # 移动、碰撞、镜头交互所需的世界状态
-  pages/select/            # 角色选择页
-  pages/game/              # 小程序游戏页与交互
+  pages/select/            # 角色选择页 + 周目继承选择
+  pages/game/              # 小程序游戏页与交互（含因果面板）
 web/                       # 浏览器预览；bundle.js 为自动生成文件
 web/sprite-lab.html         # 人物建模对照页（4 角色 × 4 朝向 × 站立/走路）
 scripts/                   # 构建、静态服务器与检查脚本
-tests/core.test.js         # 核心玩法回归测试（含八学期全流程）
+tests/core.test.js         # 核心玩法回归测试（含八学期全流程、继承与因果）
 .github/workflows/ci.yml   # 团队自动检查
 ```
+
+## 周目继承与因果面板
+
+**存档继承字段**（`engine/save.js`，浏览器用 `localStorage`，小程序用 `wx storage`）：
+
+```js
+{
+  playthroughs,   // 已经走完的周目数
+  bestStats,      // 四年里各项属性的最好成绩 —— 决定下一周目能继承什么
+  endings,        // 见过的结局
+  hiddenEvents,   // 解锁过的隐藏事件
+  lastEnding,     // 上一局的结局与均分
+  lastChoiceLog   // 上一局最后几个选择，用于因果面板的「上一周目回声」
+}
+```
+
+`GameCore` 的存档（`serialize()`）同样带着 `playthrough / legacyId / legacyEnergyBonus / hiddenCleared / choiceLog`，
+所以继承关系和因果记录是跟着存档走的。
+
+**继承选择 UI**：只有 `playthroughs > 0` 时角色页才会出现「周目继承」区块。每件遗物都带解锁条件
+（例如「上一周目学识达到 60」「完成过一次毕业」），没达到的卡片置灰并显示差值；一局只能选一样，也可以选「什么都不带」。
+
+**隐藏事件解锁条件**：`HIDDEN_EVENTS[scene][i].requires` 指向一件遗物，`after` 指向该场景里必须先完成的任务。
+未满足时任务列表里是一条虚线锁定项，写明解锁条件；满足后才变成可进入的「隐藏事件」。
+
+**choiceLog 写入点**：任务选择（`applyChoice`）、NPC 请求（`resolveRequest`）、连锁后果（`resolveChain`）、
+期末考试（`finishExam`）、继承（`applyLegacy`）都会写一条记录。埋下后果时 `consequences` 里记下
+`{ eventId, title, fireAt, fired }`，等它真的发作，`collectTriggers()` 会回头把 `fired` 标成 `true`。
+
+**因果面板 UI**：右上角「因」打开，先看属性影响总量与「还没发作的后果」，再按学期倒出时间线，
+每条记录显示类型、选择内容、当场影响、好感变化，以及「↳ 3 周后引发『迟到的第三次点名』· 已发作」这类因果链接；
+顶部标签可按任务 / 关系 / 后果 / 隐藏 / 学业 / 继承筛选。
 
 ## 组员协作
 

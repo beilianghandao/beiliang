@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, '..');
 const modules = {
   content: 'miniprogram/data/content.js',
   core: 'miniprogram/engine/core.js',
+  save: 'miniprogram/engine/save.js',
   renderer: 'miniprogram/engine/renderer.js',
   world: 'miniprogram/engine/world.js'
 };

@@ -1,13 +1,29 @@
-const { CHARACTERS, EVENTS, ENDINGS, NPCS, REQUESTS, CHAIN_EVENTS, affinityTier, getExamQuestions, semesterLabel } = require('../data/content');
+const { CHARACTERS, EVENTS, ENDINGS, NPCS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel } = require('../data/content');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
+// 属性 key -> 中文名，因果面板靠它把「影响」翻译成人话
+const EFFECT_LABELS = { knowledge: '学识', fitness: '体魄', mood: '心态', social: '人缘', practice: '实践', energy: '精力' };
+
+function effectLabel(key) { return EFFECT_LABELS[key] || key; }
+
+// 一次选择会影响哪些维度（因果面板的分类标签）
+function effectTags(effects) {
+  const tags = [];
+  Object.keys(effects || {}).forEach(key => {
+    const label = effectLabel(key);
+    if (!tags.includes(label)) tags.push(label);
+  });
+  return tags;
+}
+
 class GameCore {
-  constructor(characterId = 'lin') {
-    this.reset(characterId);
+  constructor(characterId = 'lin', options = {}) {
+    this.reset(characterId, options);
   }
 
-  reset(characterId = 'lin') {
+  // options: { playthrough: 第几周目, legacyId: 继承的遗物 id }
+  reset(characterId = 'lin', options = {}) {
     this.character = CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
     this.stats = { ...this.character.stats };
     this.energy = 82;
@@ -26,7 +42,7 @@ class GameCore {
     // 主动找上门、还没答复的请求
     this.requests = [];
     this.resolvedRequests = [];
-    // 延迟触发队列：还没发作的连锁事件 { eventId, fireAt }
+    // 延迟触发队列：还没发作的连锁事件 { eventId, fireAt, origin }
     this.triggers = [];
     // 已经发作、等着玩家处理的连锁事件
     this.pendingChains = [];
@@ -36,19 +52,174 @@ class GameCore {
     this.maxActiveRequests = 1;
     this.nextRequestWeek = 2;
     this.log = [`与${this.character.name}一起，在青梧大学开始四年的旅程。`];
+
+    // ===== 周目继承 =====
+    this.playthrough = Math.max(1, Math.floor(options.playthrough || 1));
+    this.legacy = null;         // 本局继承的遗物（LEGACY_OPTIONS 里的一项）
+    this.legacyId = null;
+    this.legacyEnergyBonus = 0; // 遗物带来的每周额外精力
+    this.hiddenCleared = [];    // 本局完成过的隐藏事件 id
+
+    // ===== 因果记录：每一次选择，以及它后来影响了什么 =====
+    this.choiceLog = [];
+    this.choiceSeq = 0;
+    this.totalHiddenQuests = Object.keys(HIDDEN_EVENTS).reduce((sum, scene) => sum + HIDDEN_EVENTS[scene].length, 0);
+
+    if (options.legacyId) this.applyLegacy(options.legacyId);
   }
 
   get semesterName() { return semesterLabel(this.semester); }
   get examReady() { return this.week > this.weeksPerSemester && !this.ending; }
   get totalProgress() { return Math.round(((this.semester - 1) * this.weeksPerSemester + Math.min(this.week, this.weeksPerSemester) - 1) / (this.maxSemesters * this.weeksPerSemester) * 100); }
+  get isReplay() { return this.playthrough > 1; }
 
   getScene(sceneId) { return EVENTS[sceneId]; }
 
-  // 该场景的任务完成状态列表
+  // ============ 周目继承 ============
+
+  // 接住上一周目留下的那一样东西：属性 / 道具 / 每周精力 / 初始好感
+  applyLegacy(legacyId) {
+    const option = LEGACY_OPTIONS.find(item => item.id === legacyId);
+    if (!option) return null;
+    const applied = {};
+    Object.keys(option.effect || {}).forEach(key => {
+      this.stats[key] = clamp((this.stats[key] || 0) + option.effect[key]);
+      applied[key] = option.effect[key];
+    });
+    if (option.weeklyEnergy) this.legacyEnergyBonus = option.weeklyEnergy;
+    if (option.affinityAll) NPCS.forEach(npc => { this.affinity[npc.id] = (this.affinity[npc.id] || 0) + option.affinityAll; });
+    this.legacyId = option.id;
+    this.legacy = option;
+    this.log.unshift(`你带着「${option.name}」重新走进校门。`);
+    this.pushLog({
+      type: 'legacy', sceneName: '校门口', title: `第 ${this.playthrough} 周目 · 继承「${option.name}」`,
+      choice: option.effectText, effects: applied, tags: effectTags(applied),
+      note: option.hiddenEvent ? '隐藏事件的条件已满足，去对应场景看看。' : ''
+    });
+    return { option, applied };
+  }
+
+  // 这个遗物解锁的隐藏事件能不能进（需要继承指定遗物 + 场景前置任务已完成）
+  hiddenUnlocked(def) {
+    if (!def) return false;
+    if (def.requires && this.legacyId !== def.requires) return false;
+    if (def.after && !this.completed.includes(def.after)) return false;
+    return true;
+  }
+
+  hiddenRequireText(def) {
+    const legacy = LEGACY_OPTIONS.find(item => item.id === def.requires);
+    const parts = [];
+    if (legacy) parts.push(`继承「${legacy.name}」`);
+    if (def.after) {
+      const [sceneId, index] = def.after.split(':');
+      const quest = EVENTS[sceneId] && EVENTS[sceneId].quests[Number(index)];
+      parts.push(`完成「${quest ? quest.title : def.after}」`);
+    }
+    return parts.join(' · ');
+  }
+
+  // 该场景的隐藏事件（含锁定状态与它在任务列表里的序号）
+  hiddenQuestsFor(sceneId) {
+    const scene = EVENTS[sceneId];
+    if (!scene) return [];
+    return (HIDDEN_EVENTS[sceneId] || []).map((def, offset) => {
+      const index = scene.quests.length + offset;
+      return { ...def, index, locked: !this.hiddenUnlocked(def), requireText: this.hiddenRequireText(def) };
+    });
+  }
+
+  // 统一取任务：先取普通任务，超出部分去隐藏事件里找
+  questAt(sceneId, index) {
+    const scene = EVENTS[sceneId];
+    if (!scene) return null;
+    if (index < scene.quests.length) return scene.quests[index] || null;
+    const hidden = this.hiddenQuestsFor(sceneId)[index - scene.quests.length];
+    return hidden || null;
+  }
+
+  hiddenClearedCount() { return this.hiddenCleared.length; }
+
+  // ============ 因果记录 ============
+
+  // 每一次选择都写一条，记下「我选了什么 / 当场影响了什么 / 后来会引发什么」
+  pushLog(entry = {}) {
+    this.choiceSeq += 1;
+    const record = {
+      id: `c${this.choiceSeq}`,
+      type: entry.type || 'quest',
+      semester: this.semester,
+      semesterName: this.semesterName,
+      week: Math.min(this.week, this.weeksPerSemester),
+      absoluteWeek: this.absoluteWeek,
+      at: `${this.semesterName} · 第 ${Math.min(this.week, this.weeksPerSemester)} 周`,
+      scene: entry.scene || null,
+      sceneName: entry.sceneName || '',
+      title: entry.title || '',
+      speaker: entry.speaker || '',
+      choice: entry.choice || '',
+      effects: entry.effects || {},
+      affinity: entry.affinity || null,
+      tags: entry.tags || [],
+      note: entry.note || '',
+      consequences: entry.consequences || []
+    };
+    this.choiceLog.push(record);
+    if (this.choiceLog.length > 240) this.choiceLog.shift();
+    return record;
+  }
+
+  // 某个选择埋下的后果发作了，回头给那条记录补一笔
+  markConsequenceFired(originId, eventId, firedAt) {
+    if (!originId) return;
+    const record = this.choiceLog.find(item => item.id === originId);
+    if (!record) return;
+    const consequence = record.consequences.find(item => item.eventId === eventId);
+    if (consequence) { consequence.fired = true; consequence.firedAt = firedAt; }
+  }
+
+  // 因果面板要的全部数据：总量、分类计数、时间线、还没发作的后果
+  causeReport() {
+    const entries = this.choiceLog.slice();
+    const totals = {};
+    entries.forEach(entry => {
+      Object.keys(entry.effects || {}).forEach(key => { totals[key] = (totals[key] || 0) + entry.effects[key]; });
+    });
+    const counts = { quest: 0, request: 0, chain: 0, exam: 0, legacy: 0, hidden: 0 };
+    entries.forEach(entry => { counts[entry.type] = (counts[entry.type] || 0) + 1; });
+    const pending = this.scheduledTriggers().map(item => ({ title: item.def ? item.def.title : item.eventId, inWeeks: item.inWeeks }));
+    const affinity = Object.keys(this.affinity)
+      .filter(id => this.affinity[id])
+      .map(id => ({ id, name: this.npcName(id), value: this.affinity[id] }));
+    return {
+      playthrough: this.playthrough,
+      legacy: this.legacy,
+      total: entries.length,
+      totals, counts, entries, pending, affinity,
+      hidden: { total: this.totalHiddenQuests, cleared: this.hiddenCleared.slice(), unlocked: this.hiddenQuestsForAllScenes().filter(item => !item.locked).map(item => item.id) }
+    };
+  }
+
+  hiddenQuestsForAllScenes() {
+    return Object.keys(HIDDEN_EVENTS).reduce((list, sceneId) => list.concat(this.hiddenQuestsFor(sceneId)), []);
+  }
+
+  // 该场景的任务完成状态列表（普通任务 + 隐藏事件）
   sceneProgress(sceneId) {
     const scene = EVENTS[sceneId];
     if (!scene) return [];
-    return scene.quests.map((q, i) => ({ quest: q, index: i, done: this.completed.includes(`${sceneId}:${i}`), times: this.visited[`${sceneId}:${i}`] || 0 }));
+    const base = scene.quests.map((quest, index) => ({
+      quest, index, hidden: false, locked: false,
+      done: this.completed.includes(`${sceneId}:${index}`),
+      times: this.visited[`${sceneId}:${index}`] || 0
+    }));
+    const hidden = this.hiddenQuestsFor(sceneId).map(def => ({
+      quest: def, index: def.index, hidden: true, locked: def.locked, requireText: def.requireText,
+      badge: def.locked ? '隐藏事件 · 未解锁' : '隐藏事件',
+      done: this.completed.includes(`${sceneId}:${def.index}`),
+      times: this.visited[`${sceneId}:${def.index}`] || 0
+    }));
+    return base.concat(hidden);
   }
 
   // ============ 关系 ============
@@ -137,7 +308,14 @@ class GameCore {
     this.requests.splice(this.requests.indexOf(item), 1);
     this.resolvedRequests.push(requestId);
     const total = this.affinityOf(item.npc);
-    this.log.unshift(`你${delta >= 0 ? '答应' : '拒绝了'}「${def.title}」，与${this.npcName(item.npc)}的好感 ${delta >= 0 ? '+' : ''}${delta}（当前 ${total}）。`);
+    const name = this.npcName(item.npc);
+    this.log.unshift(`你${delta >= 0 ? '答应' : '拒绝了'}「${def.title}」，与${name}的好感 ${delta >= 0 ? '+' : ''}${delta}（当前 ${total}）。`);
+    this.pushLog({
+      type: 'request', title: def.title, sceneName: name, speaker: name,
+      choice: choice.text, effects: applied, tags: effectTags(applied),
+      affinity: { npc: item.npc, name, delta, total, accepted: delta > 0 },
+      note: delta >= 0 ? '答应下来，关系往前走了一步。' : '拒绝也会被记住，关系往后退了一步。'
+    });
     return { reply: choice.reply, applied, affinity: delta, total, npc: item.npc, tier: affinityTier(total), accepted: delta > 0 };
   }
 
@@ -148,11 +326,11 @@ class GameCore {
 
   // ============ 连锁事件与延迟触发队列 ============
 
-  // 把一个连锁事件排进延迟队列，delay 周之后才发作
-  scheduleTrigger(eventId, delay = 1) {
+  // 把一个连锁事件排进延迟队列，delay 周之后才发作；origin 指向埋下它的那条因果记录
+  scheduleTrigger(eventId, delay = 1, origin = null) {
     const def = CHAIN_EVENTS[eventId];
     if (!def) return null;
-    const entry = { eventId, fireAt: this.absoluteWeek + (delay || 1) };
+    const entry = { eventId, fireAt: this.absoluteWeek + (delay || 1), origin };
     this.triggers.push(entry);
     this.log.unshift(`「${def.title}」被记下了，${entry.fireAt - this.absoluteWeek} 周之后才会发作。`);
     return entry;
@@ -171,8 +349,10 @@ class GameCore {
         if (this.pendingChains.includes(entry.eventId)) return;
         this.pendingChains.push(entry.eventId);
         fired.push(entry.eventId);
+        // 因果闭环：回头给当初那个选择补上「它后来引发了什么」
+        this.markConsequenceFired(entry.origin, entry.eventId, this.absoluteWeek);
         const def = CHAIN_EVENTS[entry.eventId];
-        if (def && def.next) this.scheduleTrigger(def.next, def.nextDelay || 2);
+        if (def && def.next) this.scheduleTrigger(def.next, def.nextDelay || 2, entry.origin);
       });
     }
     if (fired.length) this.log.unshift(`${fired.length} 件事情找上门了。`);
@@ -196,6 +376,11 @@ class GameCore {
     const applied = this.applyEffects(choice.effects);
     this.pendingChains.splice(index, 1);
     this.log.unshift(`处理了「${def.title}」。`);
+    this.pushLog({
+      type: 'chain', title: def.title, sceneName: def.place, speaker: def.speaker,
+      choice: choice.text, effects: applied, tags: effectTags(applied),
+      note: '这是之前某个选择滚出来的后果，你刚刚给它收了尾。'
+    });
     return { reply: choice.reply, applied, event: def };
   }
 
@@ -204,11 +389,15 @@ class GameCore {
   applyChoice(sceneId, questIndex, choiceIndex) {
     if (this.examReady || this.ending) return null;
     const scene = EVENTS[sceneId];
-    const quest = scene && scene.quests[questIndex];
-    const choice = quest && quest.choices[choiceIndex];
+    const quest = this.questAt(sceneId, questIndex);
+    if (!scene || !quest || !quest.choices) return null;
+    // 隐藏事件没解锁前不给选
+    if (quest.requires && !this.hiddenUnlocked(quest)) return null;
+    const choice = quest.choices[choiceIndex];
     if (!choice) return null;
 
     const key = `${sceneId}:${questIndex}`;
+    const hidden = !!quest.requires;
     const repeat = (this.visited[key] || 0) > 0;
     const factor = repeat ? 0.4 : 1;
     const npc = this.npcOfScene(sceneId);
@@ -219,18 +408,35 @@ class GameCore {
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
     this.log.unshift(`${this.semesterName} · 第${this.week}周 · ${quest.title}`);
+    if (hidden && !this.hiddenCleared.includes(quest.id)) this.hiddenCleared.push(quest.id);
+
+    // 把这次选择写进因果记录，后面再有后果发作就能挂回这一条
+    const record = this.pushLog({
+      type: hidden ? 'hidden' : 'quest',
+      scene: sceneId, sceneName: scene.name, title: quest.title, speaker: scene.speaker,
+      choice: choice.text, effects: applied, tags: effectTags(applied),
+      note: hidden ? `隐藏事件 · ${quest.title}` : ''
+    });
+
     this.week += 1;
     this.absoluteWeek += 1;
-    this.energy = clamp(this.energy + 10 + (this.character.id === 'jiang' ? 8 : 0));
+    this.energy = clamp(this.energy + 10 + (this.character.id === 'jiang' ? 8 : 0) + this.legacyEnergyBonus);
 
     // 这个选择可能埋下后果：排进延迟队列，几周之后才发作
     let chained = null;
     if (choice.chain && choice.chain.event) {
-      chained = this.scheduleTrigger(choice.chain.event, choice.chain.delay || 1);
+      chained = this.scheduleTrigger(choice.chain.event, choice.chain.delay || 1, record.id);
+      const chainDef = CHAIN_EVENTS[choice.chain.event];
+      record.consequences.push({
+        type: 'chain', eventId: choice.chain.event,
+        title: chainDef ? chainDef.title : choice.chain.event,
+        fireAt: chained ? chained.fireAt : this.absoluteWeek + 1, fired: false
+      });
+      record.note = `埋下了一个后果：${chainDef ? chainDef.title : choice.chain.event} 会在 ${chained ? Math.max(1, chained.fireAt - this.absoluteWeek) : 1} 周后找上来。`;
     }
     const fired = this.collectTriggers();
     const request = this.scheduleRequest();
-    return { reply: choice.reply, applied, repeat, examReady: this.examReady, chained, fired, request };
+    return { reply: choice.reply, applied, repeat, examReady: this.examReady, chained, fired, request, logId: record.id, hidden: hidden ? quest : null };
   }
 
   startExam() {
@@ -254,6 +460,11 @@ class GameCore {
     const correct = this.examAnswers.reduce((sum, a, i) => sum + (a === questions[i].answer ? 1 : 0), 0);
     const score = Math.round(clamp(correct * 10 + this.stats.knowledge * 0.35 + this.stats.practice * 0.15));
     this.examScores.push(score);
+    this.pushLog({
+      type: 'exam', title: `${this.semesterName} 期末考试`, sceneName: '考场',
+      choice: `答对 ${correct} / ${questions.length} 题`,
+      effects: {}, tags: ['学业'], note: `期末成绩 ${score} 分，已计入四年均分。`
+    });
     this.absoluteWeek += 1;      // 考试与假期也占掉一周，延迟队列继续往下走
     this.collectTriggers();
     this.scheduleRequest();
@@ -295,9 +506,13 @@ class GameCore {
       semester: this.semester, week: this.week, completed: this.completed,
       visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40),
       affinity: this.affinity, requests: this.requests, resolvedRequests: this.resolvedRequests,
-      triggers: this.triggers, pendingChains: this.pendingChains, absoluteWeek: this.absoluteWeek
+      triggers: this.triggers, pendingChains: this.pendingChains, absoluteWeek: this.absoluteWeek,
+      // 存档继承字段：周目数、继承的遗物、已完成的隐藏事件，以及整份因果记录
+      playthrough: this.playthrough, legacyId: this.legacyId,
+      legacyEnergyBonus: this.legacyEnergyBonus, hiddenCleared: this.hiddenCleared,
+      choiceLog: this.choiceLog.slice(-120), choiceSeq: this.choiceSeq
     };
   }
 }
 
-module.exports = { GameCore, clamp };
+module.exports = { GameCore, clamp, EFFECT_LABELS, effectLabel, effectTags };

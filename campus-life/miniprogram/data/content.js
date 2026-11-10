@@ -377,4 +377,107 @@ const CHAIN_EVENTS = {
   }
 };
 
-module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES };
+// ============ 周目继承：一周目结束，可以带走一样东西 ============
+// type: attribute 属性型 / item 道具型；effect 作用于开局属性；
+// weeklyEnergy 每周额外恢复精力；affinityAll 所有同学初始好感；
+// unlock 是「上一周目达到什么条件才能在下一周目继承」，没达到就是灰色的。
+const LEGACY_OPTIONS = [
+  {
+    id: 'legacy-notes', name: '写满批注的错题本', type: 'attribute', icon: '知', color: '#5d7ea8',
+    effect: { knowledge: 8 }, effectText: '学识 +8',
+    desc: '上一周目你把四年的题来回做了两遍，错题旁边写满当时的想法。翻开它，像有人在耳边提醒。',
+    unlock: { stat: 'knowledge', at: 60 }, unlockText: '上一周目学识达到 60',
+    hiddenEvent: 'hidden-lib-margin'
+  },
+  {
+    id: 'legacy-wristband', name: '跑团的旧护腕', type: 'attribute', icon: '体', color: '#5b9272',
+    effect: { fitness: 8 }, weeklyEnergy: 4, effectText: '体魄 +8 · 每周多恢复 4 点精力',
+    desc: '护腕边缘已经起球，还留着塑胶跑道的味道。上一周目最后一圈，是你自己跑完的。',
+    unlock: { stat: 'fitness', at: 60 }, unlockText: '上一周目体魄达到 60',
+    hiddenEvent: 'hidden-gym-lap'
+  },
+  {
+    id: 'legacy-lamp', name: '修复室的旧台灯', type: 'item', icon: '行', color: '#ba8b48',
+    effect: { practice: 6 }, effectText: '实践 +6',
+    desc: '灯罩内侧有一小块被烤黄的痕迹。修书的人说过，慢下来才看得见细节。',
+    unlock: { stat: 'practice', at: 60 }, unlockText: '上一周目实践达到 60',
+    hiddenEvent: 'hidden-lab-drawer'
+  },
+  {
+    id: 'legacy-addressbook', name: '写满名字的通讯录', type: 'item', icon: '友', color: '#ae7b9f',
+    effect: { social: 4 }, affinityAll: 12, effectText: '人缘 +4 · 所有同学初始好感 +12',
+    desc: '每页写着一个名字和一句话。上一周目你花很久才明白，认识人比赢过人有意思。',
+    unlock: { stat: 'social', at: 60 }, unlockText: '上一周目人缘达到 60',
+    hiddenEvent: 'hidden-dorm-bed'
+  },
+  {
+    id: 'legacy-letter', name: '湖心岛没寄出的信', type: 'item', icon: '心', color: '#d88a75',
+    effect: { mood: 8 }, effectText: '心态 +8',
+    desc: '信封上没有收件人，只有一句「给下一个我」。那天湖面的风把它吹到了你手里。',
+    unlock: { playthrough: 1 }, unlockText: '完成过一次毕业（默认解锁）',
+    hiddenEvent: 'hidden-lake-letter'
+  }
+];
+
+// ============ 隐藏事件：只在继承了对应遗物的周目里出现 ============
+// requires 必须是某个 LEGACY_OPTIONS.id；after 是同一场景里要先完成的任务 key。
+const HIDDEN_EVENTS = {
+  library: [
+    {
+      id: 'hidden-lib-margin', scene: 'library', requires: 'legacy-notes', after: 'library:0',
+      title: '第 217 页的空白处', badge: '隐藏事件',
+      text: '翻错题本的时候，你停在第 217 页。空白处有一行极小的字，笔迹和你一模一样：「别在第三章卡太久，答案在第五章。」你想起来了——这是上一周目的你，在同一个深夜写下的。',
+      choices: [
+        { text: '听它的，直接翻到第五章', hint: '学识 +10 · 精力 -6', effects: { knowledge: 10, energy: -6 }, reply: '第五章的证明写得清清楚楚。你少熬了三个通宵，也第一次意识到：有些路，自己走过一次就够了。' },
+        { text: '合上本子，从头自己再推一遍', hint: '学识 +7 · 实践 +7 · 精力 -12', effects: { knowledge: 7, practice: 7, energy: -12 }, reply: '你花了一整晚重新推导。结论和批注上说的一模一样，但这一次，它真的长在你身上了。' },
+        { text: '把这一页撕下来，夹进新笔记', hint: '心态 +8 · 学识 +3', effects: { mood: 8, knowledge: 3 }, reply: '你把它夹进刚买的空白本子第一页。旧的答案可以留着，但新的本子要自己写。' }
+      ]
+    }
+  ],
+  gym: [
+    {
+      id: 'hidden-gym-lap', scene: 'gym', requires: 'legacy-wristband', after: 'gym:0',
+      title: '第七道的影子', badge: '隐藏事件',
+      text: '陆教练看着你手腕上的护腕，愣了一下：「上周也有个人戴这个，跑法跟你一模一样，连最后一百米加速的位置都一样。」他把秒表递给你，「今天你自己掐。」',
+      choices: [
+        { text: '照着记忆里的节奏，跑完四圈', hint: '体魄 +9 · 心态 +5 · 精力 -14', effects: { fitness: 9, mood: 5, energy: -14 }, reply: '秒表停在比上次快两秒的地方。你喘着气想，原来进步是可以被自己看见的。' },
+        { text: '把秒表还给教练，按今天的身体跑', hint: '体魄 +6 · 心态 +6 · 精力 -8', effects: { fitness: 6, mood: 6, energy: -8 }, reply: '你跑得比记忆里慢，但呼吸很稳。教练说：「这才是能跑四年的样子。」' }
+      ]
+    }
+  ],
+  lab: [
+    {
+      id: 'hidden-lab-drawer', scene: 'lab', requires: 'legacy-lamp', after: 'lab:0',
+      title: '抽屉里的第二版草稿', badge: '隐藏事件',
+      text: '台灯照到工位抽屉，里面压着一沓装订好的草稿——是上周目那个没做完的方案，第三页画着一条你从没想过的思路，旁边写着：「这次别在电源上省时间。」',
+      choices: [
+        { text: '顺着那条思路重做一版', hint: '实践 +10 · 学识 +4 · 精力 -12', effects: { practice: 10, knowledge: 4, energy: -12 }, reply: '这一次样机第一次通电就没炸。唐果盯着看了半天：「你是不是偷偷练过？」你笑而不语。' },
+        { text: '只挑最关键的一处改动实现', hint: '实践 +6 · 心态 +5', effects: { practice: 6, mood: 5 }, reply: '你没有照抄上一周目的答案，只借了它一个提醒。省下来的时间，你用来教唐果看懂那一段。' }
+      ]
+    }
+  ],
+  dorm: [
+    {
+      id: 'hidden-dorm-bed', scene: 'dorm', requires: 'legacy-addressbook', after: 'dorm:0',
+      title: '通讯录里空着的那一页', badge: '隐藏事件',
+      text: '通讯录翻到最后一页，只有一个名字和一串号码，没有备注。你想起来，上一周目你加了他，却始终没打过这个电话。宋小满凑过来看：「打一个呗？反正现在也没人查寝。」',
+      choices: [
+        { text: '拨过去，说一句「最近还好吗」', hint: '人缘 +9 · 心态 +5', effects: { social: 9, mood: 5 }, reply: '电话响到第七声才被接起。对面愣了一下，然后笑了：「你怎么现在才打。」你们聊了四十分钟，约好下周一起吃饭。' },
+        { text: '在那一页补上备注，然后合上本子', hint: '心态 +8 · 实践 +3', effects: { mood: 8, practice: 3 }, reply: '你写下「欠他一次联系」。有些账不算清也没关系，但记下来，就知道自己还有想见的人。' }
+      ]
+    }
+  ],
+  lake: [
+    {
+      id: 'hidden-lake-letter', scene: 'lake', requires: 'legacy-letter', after: 'lake:0',
+      title: '第二封信', badge: '隐藏事件',
+      text: '你带着那封没寄出的信回到长椅。风把信纸翻到背面，那里还有一段话，是上次没看到的那一面的末尾：「如果你读到这里，说明你又来了。这一次，别把四年都用来证明自己配得上什么。」',
+      choices: [
+        { text: '在背面补上这一周目的答案', hint: '心态 +10 · 学识 +4', effects: { mood: 10, knowledge: 4 }, reply: '你写：「我这次想试试，先照顾自己，再去赢。」写完把手伸出栏杆，让风把纸吹皱一点，像被时间读过。' },
+        { text: '折好信，重新埋回原来的地方', hint: '心态 +7 · 精力 +8', effects: { mood: 7, energy: 8 }, reply: '铁盒还在。你把信放回去，压上一块更平的石头。下一周目的人如果找到它，会知道自己被认真对待过。' }
+      ]
+    }
+  ]
+};
+
+module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES };
