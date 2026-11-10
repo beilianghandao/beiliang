@@ -5,7 +5,7 @@
   "description": "青梧大学：大学生存图鉴，微信小程序与浏览器预览",
   "scripts": {
     "build": "node scripts/build-web.js",
-    "test": "node tests/core.test.js",
+    "test": "node tests/core.test.js && node tests/seed.test.js",
     "check": "node scripts/check.js",
     "start": "node scripts/serve.js"
   },
