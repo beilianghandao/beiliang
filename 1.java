@@ -6,6 +6,9 @@ int age = 20;
 String name = "Tom";
 System.out.println(name + "今年" + age + "岁");
 
+
+
+
 // 3. 简单计算
 int a = 10;
 int b = 20;
