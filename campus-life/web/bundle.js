@@ -64,7 +64,8 @@ const EVENTS = {
         id: 'cls-1', title: '被点名的三分钟', text: '课堂讨论陷入沉默。许老师看向你：“我想听听不同的观点，不用标准答案。”教室里安静下来，所有人都在等你的回应。',
         choices: [
           { text: '站起来，坦诚说出不成熟的想法', hint: '学识 +5 · 实践 +5 · 心态 +2', effects: { knowledge: 5, practice: 5, mood: 2 }, reply: '你的声音起初有些发紧，后来越说越流畅。老师没有评价对错，只追问了一个更深的问题——这正是思考开始的地方。' },
-          { text: '先邀请同桌一起补充，再共同回答', hint: '人缘 +7 · 学识 +3', effects: { social: 7, knowledge: 3 }, reply: '你们一人一句，竟拼出了完整的答案。同桌悄悄松了口气，下课后约你下次继续组队。' }
+          { text: '先邀请同桌一起补充，再共同回答', hint: '人缘 +7 · 学识 +3', effects: { social: 7, knowledge: 3 }, reply: '你们一人一句，竟拼出了完整的答案。同桌悄悄松了口气，下课后约你下次继续组队。' },
+          { text: '趁老师转身写板书，从后门溜出去', hint: '心态 +6 · 精力 +8 · 翘课会有连锁反应', effects: { mood: 6, energy: 8 }, chain: { event: 'roll-call', delay: 1 }, reply: '你把书包抱在胸前，沿着墙根溜进了走廊。阳光打在脸上的一瞬间，你觉得自己做了这学期最对的一件事——只是那时你还没想到，代价会在后面几周里一件件送到你面前。' }
         ]
       },
       {
@@ -240,11 +241,152 @@ function getExamQuestions(semester) {
   return result;
 }
 
-module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, getExamQuestions, semesterLabel, YEAR_NAMES };
+// 好感度分档：数值越高，NPC 越愿意为你多走一步
+const AFFINITY_TIERS = [
+  { min: 50, name: '挚友', color: '#c07a5a' },
+  { min: 30, name: '亲近', color: '#8a9a6a' },
+  { min: 10, name: '熟悉', color: '#6e87a6' },
+  { min: -999, name: '生疏', color: '#9a958a' }
+];
+
+function affinityTier(value) {
+  return AFFINITY_TIERS.find(tier => value >= tier.min) || AFFINITY_TIERS[AFFINITY_TIERS.length - 1];
+}
+
+// NPC 主动找上门的请求：答应或拒绝，都会写进你们之间的关系
+const REQUESTS = [
+  {
+    id: 'req-npc1-a', npc: 'npc1', title: '还差一个人',
+    text: '周予安敲开自习室的玻璃门，手里抱着一摞刚打印出来的文献：“这周的读书会临时缺一个人，我第一个想到你。要是有空的话……”他说话时有点不好意思，但你注意到那摞文献已经分好了两份。',
+    requires: { affinity: 0, semester: 1 },
+    choices: [
+      { text: '答应下来，顺手帮他把文献索引也整理了', reply: '你们在空教室待到很晚。讨论结束后他把最后一篇综述递给你：“下周的分享，你来做吧。”', effects: { knowledge: 5, social: 4, energy: -8 }, affinity: 8 },
+      { text: '这周实在排不开，改天再说', reply: '他点点头，把文献放回书包：“没事，你忙你的。”走的时候他回头补了一句“那也挺好的”，语气轻得像怕你听出别的意思。', effects: { mood: -3 }, affinity: -5 }
+    ]
+  },
+  {
+    id: 'req-npc1-b', npc: 'npc1', title: '旧书该有个去处了',
+    text: '周予安在旧书箱前蹲了很久，翻出一本缺了封面的册子：“修复室那边在找懂行的人搭把手。我想到了你——你上次补页的手，稳。”',
+    requires: { affinity: 30, semester: 3 },
+    choices: [
+      { text: '答应他，去修复室搭把手', reply: '旧纸的气味混着浆糊的清冽。你埋头修了整整两个周末，周予安每次都在旁边递工具。你们没怎么说话，但那摞书又厚了一指。', effects: { practice: 6, knowledge: 4, mood: 3, energy: -10 }, affinity: 10 },
+      { text: '最近手头太乱，先不接了', reply: '他把册子放回箱子里，合上盖子时比平时用力一点。“理解，理解。”他说。那之后的好几天，他都没再找你。', effects: { mood: -2 }, affinity: -6 }
+    ]
+  },
+  {
+    id: 'req-npc3-a', npc: 'npc3', title: '最后一次通宵，还缺一双手',
+    text: '唐果半夜十二点发来消息，附了一张示波器的照片：“车能跑了，但刹车那段老抖。明天就是最后一次调试，求你，来不来？不来我也自己调，就是可能调不出来。”',
+    requires: { affinity: 0, semester: 2 },
+    choices: [
+      { text: '去，熬这一宿', reply: '凌晨四点，终于刹住了。唐果瘫在椅子上，忽然跳起来抱住你：“成了！明年一定要一起上场。”', effects: { practice: 7, energy: -14 }, affinity: 9 },
+      { text: '太晚了，明天还有早课', reply: '他没有多说，只回了个“好的”。第二天路过实验楼，你看见他一个人抱着示波器进去，背影比平时小一号。', effects: { mood: -4 }, affinity: -6 }
+    ]
+  },
+  {
+    id: 'req-npc3-b', npc: 'npc3', title: '想请你当一次答辩评委',
+    text: '唐果把评委表推到你面前，指了指空着的那一格：“社里的评委都是熟人，我不想让他们手下留情。你来，你不会放过我。”',
+    requires: { affinity: 30, semester: 4 },
+    choices: [
+      { text: '答应他，认真问每一个问题', reply: '你的第三个问题让他卡了整整十秒。答辩结束后他长出一口气：“谢了。下次换我问别人。”', effects: { practice: 6, social: 5, knowledge: 3 }, affinity: 10 },
+      { text: '自己也是学生，当评委不合适', reply: '他有点意外，随即把表收回去：“那也对。”接下来一整天，他都没再提这件事。', effects: { mood: -3 }, affinity: -7 }
+    ]
+  },
+  {
+    id: 'req-npc4-a', npc: 'npc4', title: '我不敢一个人去',
+    text: '阿岚在教学楼门口站了很久，看见你才小跑过来：“我听说这个讲座要提前占位……我可以站你旁边吗？我怕一个人进去会不知道该坐在哪。”',
+    requires: { affinity: 0, semester: 1 },
+    choices: [
+      { text: '带她一起进去，帮她占了个好位置', reply: '讲座结束后她说了整整十分钟她听懂的部分。你注意到她比刚转来时话多了很多。', effects: { social: 6, mood: 4 }, affinity: 9 },
+      { text: '你先进去，她可以自己找位子', reply: '她往后退了半步，说了声“没事”，自己找了个角落坐下。你进场时，她正盯着手机屏幕。', effects: { mood: -2 }, affinity: -6 }
+    ]
+  },
+  {
+    id: 'req-npc4-b', npc: 'npc4', title: '可以陪我去面试吗',
+    text: '阿岚攥着简历站在宿舍楼下，手心捏出了折痕：“下午的面试……我想找个人在外面等我。面试完告诉我结果就好，别的不用说。”',
+    requires: { affinity: 30, semester: 3 },
+    choices: [
+      { text: '陪她去，在外面等她出来', reply: '她出来时脸是红的，把水递给你才发现自己一直在抖。她拿到实习 offer 的消息是晚上十一点发来的，只有一个字：“谢。”', effects: { social: 7, practice: 4, mood: 4, energy: -8 }, affinity: 11 },
+      { text: '那天你有事，实在陪不了', reply: '她说“没事的”，然后自己去了。晚上她发来面试通过的截图，多打了一行：“谢谢你说的加油。”但你记得自己并没有说过。', effects: { mood: -4 }, affinity: -8 }
+    ]
+  },
+  {
+    id: 'req-npc5-a', npc: 'npc5', title: '帮我占个座儿？',
+    text: '宋小满把书包往桌上一放，压低声音：“阶梯教室只剩最后一排了，你先去占座，我去买瓶水，马上回来！”说完人已经跑出了门。',
+    requires: { affinity: 0, semester: 1 },
+    choices: [
+      { text: '占好座，等她回来', reply: '她回来时水洒了半瓶，笑着把纸巾递给你：“谢啦，我欠你一顿。”这顿饭后来真的吃了，就在食堂二楼。', effects: { social: 5, mood: 3 }, affinity: 7 },
+      { text: '位置留给别人了，你坐到了后排', reply: '她回来的时候在门口愣了两秒，然后若无其事地坐到最后一排。下课你们谁都没提这件事。', effects: { mood: -1 }, affinity: -4 }
+    ]
+  },
+  {
+    id: 'req-npc5-b', npc: 'npc5', title: '这周末，回不回老家？',
+    text: '熄灯前的卧谈会，宋小满忽然问：“你周末回老家吗？我妈问我学校的事，我一张嘴就‘还行’……其实我也不知道该怎么讲。你要是也回去，我可以跟我一起想想怎么说。”',
+    requires: { affinity: 20, semester: 2 },
+    choices: [
+      { text: '陪她一起想，认真聊了整晚', reply: '你们轮流说着说着就天亮了。她说：“原来不是我不知道怎么讲，是我没敢真的讲。”', effects: { mood: 6, social: 4 }, affinity: 8 },
+      { text: '你说你也还没想好', reply: '“那算了。”她翻了个身。宿舍安静下来之后，你听见对面床铺轻微的翻身声，一整晚。', effects: { mood: -2 }, affinity: -5 }
+    ]
+  },
+  {
+    id: 'req-npc7-a', npc: 'npc7', title: '迎新晚会的节目，还差一个主角',
+    text: '顾星野把流程表卷成筒敲了敲桌面：“节目单上有一个空位，原本的主角家里有事来不了。我不想随便拉个人凑数——你来，这台戏你撑得住。”',
+    requires: { affinity: 0, semester: 2 },
+    choices: [
+      { text: '接下这个角色，把整台节目扛下来', reply: '彩排到深夜，散场时后台只剩你们两个人和一地荧光棒。他说：“我就知道没找错人。”', effects: { practice: 6, social: 5, energy: -10 }, affinity: 9 },
+      { text: '推掉这个位置，你不适合站那种舞台', reply: '他点点头，把流程表上的名字划掉，换了个不相干的人。“也行，”他说，“反正总得有人上。”', effects: { mood: -3 }, affinity: -5 }
+    ]
+  },
+  {
+    id: 'req-npc7-b', npc: 'npc7', title: '学生会换届，想推荐你',
+    text: '顾星野把一份竞选表推过来，笔已经拧开了：“换届名单上我想写你的名字。不是因为我需要一个能干的帮手——是因为这四年的事，我看着你一件一件做成过。”',
+    requires: { affinity: 40, semester: 4 },
+    choices: [
+      { text: '在竞选表上签下自己的名字', reply: '接下来一个月，你学会了怎么在会议里推进事情，也学会了怎么在失败之后不下台。那年你们拿下了社团年度评选。', effects: { social: 8, practice: 5, mood: 4, energy: -12 }, affinity: 12 },
+      { text: '你只想当个普通的同学', reply: '他把笔盖盖好，点了点头：“也好，你本来就该做你自己。”可那之后，他再没提过类似的话。', effects: { mood: -4 }, affinity: -8 }
+    ]
+  }
+];
+
+// 连锁事件：一次翘课会滚成 点名 → 辅导员谈话 → 家长来电
+// next 指向下一级，nextDelay 是它隔几周才发作；没有 next 就是链子的尽头
+const CHAIN_EVENTS = {
+  'roll-call': {
+    id: 'roll-call', level: 1, title: '迟到的第三次点名',
+    speaker: '许老师', role: '通识课教师', place: '明德教学楼 · 203 教室', scene: 'classroom',
+    text: '第三次点名。你的书包还挂在肩上，鞋带散了两次才一路小跑过来。许老师的手指在名单上停住了，整间教室安静下来，所有人都在等你的解释。“这位同学，请说明一下。”',
+    choices: [
+      { text: '站起来认了，说昨晚赶实验到太晚', reply: '你站起来的瞬间，几十道目光一起落下来。老师看了你很久，最后只说了一句：“下次记得，困了可以请假。”下课后，她在走廊里叫住你，说这事记下了但不算处分。', effects: { mood: -4, knowledge: 2, practice: 1 } },
+      { text: '小声说“我马上就到”', reply: '“马上就到”是最没有说服力的四个字。你含混地答了一句，教室里的目光像针一样扎在背上。你很清楚，这件事不会就这么过去。', effects: { mood: -3, practice: 2 } }
+    ],
+    next: 'counselor-talk', nextDelay: 2
+  },
+  'counselor-talk': {
+    id: 'counselor-talk', level: 2, title: '辅导员办公室的谈话',
+    speaker: '沈老师', role: '辅导员', place: '学工楼 · 辅导员办公室', scene: 'classroom',
+    text: '你被叫进了辅导员办公室。沈老师把一份考勤记录推到你面前，上面是同一个名字的三次迟到。“我不问你为什么，我只想知道你现在过得怎么样。”她把茶推过来，示意你坐下。',
+    choices: [
+      { text: '坐下来，把这阵子真实的状态说一遍', reply: '你从翘课那天讲起，讲到最近的睡眠和那些说不出口的压力。沈老师听完只说了一句：“需要的话，我帮你调一次课。”那天下午的谈话，比任何一次安慰都管用。', effects: { mood: 6, social: 3, energy: 4 } },
+      { text: '说一切都好，没什么好谈的', reply: '“那就好。”她点点头，把考勤记录收回去。你转身要走时，她叫住你：“下次别等我问。”门在身后合上，声音很轻。', effects: { mood: -3, knowledge: 1 } }
+    ],
+    next: 'parent-call', nextDelay: 2
+  },
+  'parent-call': {
+    id: 'parent-call', level: 3, title: '家里来的电话',
+    speaker: '妈妈', role: '家人', place: '学生公寓 · 412 寝室', scene: 'dorm',
+    text: '晚上十一点，手机在枕头边震了一下。屏幕上跳出来两个字：妈妈。你接起来，那边先是很长的沉默，然后她说：“我听你辅导员说了一些事……我不吵你，我就问问，你最近到底怎么样。”',
+    choices: [
+      { text: '如实告诉她，承认自己最近有点撑不住', reply: '电话那头安静了一会儿，然后她说：“你怎么不早说。”她没有责怪你，只是让你这周末回家一趟，说要给你炖汤。挂断之后你在楼道里坐了很久，觉得轻了一点。', effects: { mood: 8, energy: 6, social: 2 } },
+      { text: '轻描淡写，说只是最近有点忙', reply: '“哦，那你忙吧。”电话挂得很快。屏幕暗下去，映出你自己有点发慌的脸。你忽然明白，她其实早就知道了。', effects: { mood: -5, energy: -4 } }
+    ],
+    next: null
+  }
+};
+
+module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES };
 
 };
 modules['core'] = function(module, exports, require) {
-const { CHARACTERS, EVENTS, ENDINGS, getExamQuestions, semesterLabel } = require('content');
+const { CHARACTERS, EVENTS, ENDINGS, NPCS, REQUESTS, CHAIN_EVENTS, affinityTier, getExamQuestions, semesterLabel } = require('content');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
@@ -267,6 +409,20 @@ class GameCore {
     this.currentExam = null;
     this.examScores = [];       // 每学期成绩
     this.ending = null;
+    // 关系：每个 NPC 一个好感度，答应加、拒绝减，久了不维护会淡
+    this.affinity = {};
+    // 主动找上门、还没答复的请求
+    this.requests = [];
+    this.resolvedRequests = [];
+    // 延迟触发队列：还没发作的连锁事件 { eventId, fireAt }
+    this.triggers = [];
+    // 已经发作、等着玩家处理的连锁事件
+    this.pendingChains = [];
+    this.absoluteWeek = 1;      // 跨学期连续累加的周序号，延迟队列靠它计时
+    this.requestCooldown = 1;
+    this.requestPatience = 3;   // NPC 等你几周就会走
+    this.maxActiveRequests = 1;
+    this.nextRequestWeek = 2;
     this.log = [`与${this.character.name}一起，在青梧大学开始四年的旅程。`];
   }
 
@@ -283,6 +439,156 @@ class GameCore {
     return scene.quests.map((q, i) => ({ quest: q, index: i, done: this.completed.includes(`${sceneId}:${i}`), times: this.visited[`${sceneId}:${i}`] || 0 }));
   }
 
+  // ============ 关系 ============
+
+  affinityOf(npcId) { return this.affinity[npcId] || 0; }
+  affinityTierOf(npcId) { return affinityTier(this.affinityOf(npcId)); }
+  npcOfScene(sceneId) { return NPCS.find(n => n.event === sceneId) || null; }
+
+  // 统一结算属性/精力，角色特长与好感度加成都收在这里
+  applyEffects(effects, options = {}) {
+    const { sceneId = null, factor = 1, npcId = null } = options;
+    const applied = {};
+    Object.keys(effects || {}).forEach(key => {
+      let value = effects[key];
+      if (key !== 'energy') value = Math.max(1, Math.round(value * factor));
+      if (key === 'knowledge' && this.character.id === 'chen' && value > 0 && sceneId && ['library', 'classroom', 'lab'].includes(sceneId)) value += 2;
+      if (key === 'social' && this.character.id === 'lin' && value > 0) value += 1;
+      // 关系维护到位时，和这个人有关的行动收益更高
+      if (key !== 'energy' && value > 0 && npcId && this.affinityOf(npcId) >= 30) value = Math.round(value * 1.3);
+      applied[key] = value;
+      if (key === 'energy') this.energy = clamp(this.energy + value);
+      else this.stats[key] = clamp(this.stats[key] + value);
+    });
+    return applied;
+  }
+
+  // ============ 请求事件调度器 ============
+
+  // 当前排得上号的请求（已解锁、没答复过、也不在队列里）
+  eligibleRequests() {
+    return REQUESTS.filter(request => {
+      const requires = request.requires || {};
+      return !this.resolvedRequests.includes(request.id)
+        && !this.requests.some(item => item.id === request.id)
+        && this.affinityOf(request.npc) >= (requires.affinity || 0)
+        && this.semester >= (requires.semester || 1);
+    });
+  }
+
+  // 找一个 NPC 带着请求找上门，返回新排上的请求（没有则返回 null）
+  scheduleRequest() {
+    // 等太久的请求会过期：NPC 不再上门，关系也会淡下去
+    this.requests = this.requests.filter(item => {
+      if (this.absoluteWeek - item.since < this.requestPatience) return true;
+      this.affinity[item.npc] = (this.affinity[item.npc] || 0) - 4;
+      this.log.unshift(`有人等了你很久，最后还是走了。`);
+      return false;
+    });
+    if (this.requests.length >= this.maxActiveRequests) return null;
+    if (this.absoluteWeek < this.nextRequestWeek) return null;
+    const candidates = this.eligibleRequests();
+    if (!candidates.length) return null;
+    // 越熟的人，越可能先想起你
+    candidates.sort((a, b) => this.affinityOf(b.npc) - this.affinityOf(a.npc));
+    const picked = candidates[0];
+    this.requests.push({ id: picked.id, npc: picked.npc, since: this.absoluteWeek });
+    this.nextRequestWeek = this.absoluteWeek + this.requestCooldown;
+    this.log.unshift(`有同学来找你：${picked.title}`);
+    return picked;
+  }
+
+  pendingRequestFor(npcId) {
+    const item = this.requests.find(entry => entry.npc === npcId);
+    if (!item) return null;
+    const def = REQUESTS.find(request => request.id === item.id);
+    return def ? { ...def, npc: item.npc } : null;
+  }
+
+  pendingRequests() {
+    return this.requests.map(item => {
+      const def = REQUESTS.find(request => request.id === item.id);
+      return def ? { ...def, npc: item.npc, since: item.since } : null;
+    }).filter(Boolean);
+  }
+
+  // 答应或拒绝：结果写进好感度
+  resolveRequest(requestId, choiceIndex) {
+    const def = REQUESTS.find(request => request.id === requestId);
+    const item = this.requests.find(entry => entry.id === requestId);
+    if (!def || !item) return null;
+    const choice = def.choices[choiceIndex];
+    if (!choice) return null;
+    const applied = this.applyEffects(choice.effects, { npcId: item.npc });
+    const delta = choice.affinity || 0;
+    this.affinity[item.npc] = (this.affinity[item.npc] || 0) + delta;
+    this.requests.splice(this.requests.indexOf(item), 1);
+    this.resolvedRequests.push(requestId);
+    const total = this.affinityOf(item.npc);
+    this.log.unshift(`你${delta >= 0 ? '答应' : '拒绝了'}「${def.title}」，与${this.npcName(item.npc)}的好感 ${delta >= 0 ? '+' : ''}${delta}（当前 ${total}）。`);
+    return { reply: choice.reply, applied, affinity: delta, total, npc: item.npc, tier: affinityTier(total), accepted: delta > 0 };
+  }
+
+  npcName(npcId) {
+    const npc = NPCS.find(item => item.id === npcId);
+    return npc ? npc.name : '对方';
+  }
+
+  // ============ 连锁事件与延迟触发队列 ============
+
+  // 把一个连锁事件排进延迟队列，delay 周之后才发作
+  scheduleTrigger(eventId, delay = 1) {
+    const def = CHAIN_EVENTS[eventId];
+    if (!def) return null;
+    const entry = { eventId, fireAt: this.absoluteWeek + (delay || 1) };
+    this.triggers.push(entry);
+    this.log.unshift(`「${def.title}」被记下了，${entry.fireAt - this.absoluteWeek} 周之后才会发作。`);
+    return entry;
+  }
+
+  // 把到期的连锁事件取出来，同时把下一级也排进队列（链条会自己往下滚）
+  collectTriggers() {
+    const fired = [];
+    let guard = 0;
+    while (guard++ < 32) {
+      const due = this.triggers.filter(entry => entry.fireAt <= this.absoluteWeek);
+      if (!due.length) break;
+      due.forEach(entry => {
+        const index = this.triggers.indexOf(entry);
+        if (index >= 0) this.triggers.splice(index, 1);
+        if (this.pendingChains.includes(entry.eventId)) return;
+        this.pendingChains.push(entry.eventId);
+        fired.push(entry.eventId);
+        const def = CHAIN_EVENTS[entry.eventId];
+        if (def && def.next) this.scheduleTrigger(def.next, def.nextDelay || 2);
+      });
+    }
+    if (fired.length) this.log.unshift(`${fired.length} 件事情找上门了。`);
+    return fired;
+  }
+
+  pendingChainEvents() {
+    return this.pendingChains.map(id => CHAIN_EVENTS[id]).filter(Boolean);
+  }
+
+  scheduledTriggers() {
+    return this.triggers.map(entry => ({ ...entry, def: CHAIN_EVENTS[entry.eventId], inWeeks: Math.max(0, entry.fireAt - this.absoluteWeek) }));
+  }
+
+  resolveChain(eventId, choiceIndex) {
+    const def = CHAIN_EVENTS[eventId];
+    const index = this.pendingChains.indexOf(eventId);
+    if (!def || index < 0) return null;
+    const choice = def.choices[choiceIndex];
+    if (!choice) return null;
+    const applied = this.applyEffects(choice.effects);
+    this.pendingChains.splice(index, 1);
+    this.log.unshift(`处理了「${def.title}」。`);
+    return { reply: choice.reply, applied, event: def };
+  }
+
+  // ============ 主流程 ============
+
   applyChoice(sceneId, questIndex, choiceIndex) {
     if (this.examReady || this.ending) return null;
     const scene = EVENTS[sceneId];
@@ -293,16 +599,8 @@ class GameCore {
     const key = `${sceneId}:${questIndex}`;
     const repeat = (this.visited[key] || 0) > 0;
     const factor = repeat ? 0.4 : 1;
-    const applied = {};
-    Object.keys(choice.effects).forEach(k => {
-      let value = choice.effects[k];
-      if (k !== 'energy') value = Math.max(1, Math.round(value * factor));
-      if (k === 'knowledge' && this.character.id === 'chen' && value > 0 && ['library', 'classroom', 'lab'].includes(sceneId)) value += 2;
-      if (k === 'social' && this.character.id === 'lin' && value > 0) value += 1;
-      applied[k] = value;
-      if (k === 'energy') this.energy = clamp(this.energy + value);
-      else this.stats[k] = clamp(this.stats[k] + value);
-    });
+    const npc = this.npcOfScene(sceneId);
+    const applied = this.applyEffects(choice.effects, { sceneId, factor, npcId: npc ? npc.id : null });
     if (this.character.id === 'su' && !this.visited[key]) this.stats.mood = clamp(this.stats.mood + 2);
     if (this.energy < 20) this.stats.mood = clamp(this.stats.mood - 2);
 
@@ -310,8 +608,17 @@ class GameCore {
     if (!this.completed.includes(key)) this.completed.push(key);
     this.log.unshift(`${this.semesterName} · 第${this.week}周 · ${quest.title}`);
     this.week += 1;
+    this.absoluteWeek += 1;
     this.energy = clamp(this.energy + 10 + (this.character.id === 'jiang' ? 8 : 0));
-    return { reply: choice.reply, applied, repeat, examReady: this.examReady };
+
+    // 这个选择可能埋下后果：排进延迟队列，几周之后才发作
+    let chained = null;
+    if (choice.chain && choice.chain.event) {
+      chained = this.scheduleTrigger(choice.chain.event, choice.chain.delay || 1);
+    }
+    const fired = this.collectTriggers();
+    const request = this.scheduleRequest();
+    return { reply: choice.reply, applied, repeat, examReady: this.examReady, chained, fired, request };
   }
 
   startExam() {
@@ -335,6 +642,9 @@ class GameCore {
     const correct = this.examAnswers.reduce((sum, a, i) => sum + (a === questions[i].answer ? 1 : 0), 0);
     const score = Math.round(clamp(correct * 10 + this.stats.knowledge * 0.35 + this.stats.practice * 0.15));
     this.examScores.push(score);
+    this.absoluteWeek += 1;      // 考试与假期也占掉一周，延迟队列继续往下走
+    this.collectTriggers();
+    this.scheduleRequest();
 
     if (this.semester >= this.maxSemesters) {
       const avg = Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length);
@@ -371,7 +681,9 @@ class GameCore {
     return {
       characterId: this.character.id, stats: this.stats, energy: this.energy,
       semester: this.semester, week: this.week, completed: this.completed,
-      visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40)
+      visited: this.visited, examScores: this.examScores, log: this.log.slice(0, 40),
+      affinity: this.affinity, requests: this.requests, resolvedRequests: this.resolvedRequests,
+      triggers: this.triggers, pendingChains: this.pendingChains, absoluteWeek: this.absoluteWeek
     };
   }
 }
@@ -800,7 +1112,7 @@ class CampusRenderer {
     const dir = (person.facing === 'up' || person.facing === 'left' || person.facing === 'right') ? person.facing : 'down';
     // 有立绘贴图就用贴图，没有（小程序端 / 图还没加载完）就退回逐笔绘制
     let tex = null;
-    if (isPlayer && person.moving) {
+    if (person.moving) {
       // 侧面走路有真·走路帧（腿真的换了姿势），左右交替两帧循环
       if (person._ph === undefined) person._ph = phaseSeed(person);
       const frame = Math.sin(time * .0104 + person._ph) > 0 ? 1 : 2;
@@ -864,7 +1176,7 @@ class CampusRenderer {
      步态靠四件事叠出来 —— 离地起伏、重心左右移、上身剪切摆、落地轻微压缩。
      刻意不用整体 rotate：旋转会带着脚掌一起转，看着像崴脚。 */
   drawStandee(ctx, tex, person, isPlayer, time) {
-    const moving = isPlayer && !!person.moving;
+    const moving = !!person.moving;
     const h = isPlayer ? 152 : 138;
     const w = h * tex.w / tex.h;
     const squash = tex.squash || 1;
@@ -987,7 +1299,7 @@ class CampusRenderer {
   }
 
   drawPersonRaw(ctx, person, isPlayer, time) {
-    const moving = isPlayer && !!person.moving;
+    const moving = !!person.moving;
     const dir = (person.facing === 'up' || person.facing === 'left' || person.facing === 'right') ? person.facing : 'down';
     const phase = time * .0125;
     const step = moving ? Math.sin(phase) : 0;
@@ -1904,7 +2216,12 @@ class CampusRenderer {
     const objects = [];
     TREE_POSITIONS.forEach(([x,y], i) => objects.push({ y, draw: () => this.drawTree(ctx, x, y, i) }));
     BUILDINGS.forEach(b => objects.push({ y: b.y + b.h, draw: () => this.drawBuilding(ctx, b) }));
-    NPCS.forEach(n => objects.push({ y: n.y, draw: () => this.drawPerson(ctx, n, false, time) }));
+    NPCS.forEach(n => {
+      // 主动找上门来的 NPC 画在它当下的位置，而不是出生点
+      const live = this.npcPositions && this.npcPositions[n.id];
+      const person = live ? { ...n, x: live.x, y: live.y, moving: live.moving, facing: live.facing } : n;
+      objects.push({ y: person.y, draw: () => this.drawPerson(ctx, person, false, time) });
+    });
     objects.push({ y: 850, draw: () => this.drawFountain(ctx) });
     objects.push({ y: player.y, draw: () => this.drawPerson(ctx, { ...player, ...character }, true, time) });
     objects.sort((a,b) => a.y - b.y).forEach(item => item.draw());
@@ -1919,8 +2236,27 @@ class CampusRenderer {
         text(ctx, `进入${b.name}`, b.doorX, b.doorY - 26, 13, '#fff8df', 'center', 'bold');
       }
     });
+    this.drawRequestMarkers(ctx, time);
     ctx.restore();
     this.drawVignette(ctx);
+  }
+
+  /* 有请求找上门的 NPC，头顶冒一个感叹号 */
+  drawRequestMarkers(ctx, time) {
+    Object.keys(this.requestNpcs || {}).forEach(id => {
+      const npc = NPCS.find(n => n.id === id);
+      if (!npc) return;
+      const live = this.npcPositions && this.npcPositions[id];
+      const x = live ? live.x : npc.x;
+      const y = live ? live.y : npc.y;
+      const bob = Math.sin(time * .005) * 4;
+      ctx.save();
+      ctx.fillStyle = '#f7d774';
+      ctx.beginPath(); ctx.arc(x, y - 178 + bob, 15, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,88,32,.5)'; ctx.lineWidth = 2; ctx.stroke();
+      text(ctx, '!', x, y - 178 + bob + 6, 18, '#6b5631', 'center', 'bold');
+      ctx.restore();
+    });
   }
 
   drawVignette(ctx) {
@@ -2130,11 +2466,61 @@ class CampusWorld {
     this.keys = {};
     this.target = null;
     this.nearby = null;
+    this.visitors = {};   // 主动找上门来的 NPC：id -> { x, y, npc, state }
   }
 
   setInput(x, y) { this.input.x = x; this.input.y = y; this.target = null; }
   setKey(key, pressed) { this.keys[key] = pressed; }
   setTarget(x, y) { this.target = { x, y }; }
+
+  // 让 NPC 离开原来的位置，过来找你
+  sendNpc(npcId) {
+    const npc = NPCS.find(n => n.id === npcId);
+    if (!npc) return null;
+    const visitor = this.visitors[npcId];
+    if (visitor) { visitor.state = 'approach'; return visitor; }
+    const created = { x: npc.x, y: npc.y, npc, state: 'approach' };
+    this.visitors[npcId] = created;
+    return created;
+  }
+
+  // 事办完了，送回原来的位置
+  dismissNpc(npcId) {
+    const visitor = this.visitors[npcId];
+    if (visitor) visitor.state = 'leave';
+  }
+
+  // NPC 的实时位置（给渲染器用）
+  visitorPositions() {
+    const map = {};
+    Object.keys(this.visitors).forEach(id => {
+      map[id] = { x: this.visitors[id].x, y: this.visitors[id].y };
+    });
+    return map;
+  }
+
+  updateVisitors(delta) {
+    const speed = 155 * Math.min(delta, 40) / 1000;
+    Object.keys(this.visitors).forEach(id => {
+      const v = this.visitors[id];
+      const target = v.state === 'approach' ? this.player : { x: v.npc.x, y: v.npc.y };
+      const dx = target.x - v.x;
+      const dy = target.y - v.y;
+      const distance = Math.hypot(dx, dy);
+      const stopAt = v.state === 'approach' ? 74 : 6;
+      if (distance > stopAt) {
+        const nextX = v.x + dx / distance * speed;
+        const nextY = v.y + dy / distance * speed;
+        if (!this.collides(nextX, v.y)) v.x = nextX;
+        if (!this.collides(v.x, nextY)) v.y = nextY;
+        v.moving = true;
+        v.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      } else {
+        v.moving = false;
+        if (v.state === 'leave') delete this.visitors[id];
+      }
+    });
+  }
 
   collides(x, y) {
     if (x < 35 || y < 55 || x > 2365 || y > 1550) return true;
@@ -2142,6 +2528,7 @@ class CampusWorld {
   }
 
   update(delta) {
+    this.updateVisitors(delta);
     let x = this.input.x;
     let y = this.input.y;
     if (this.keys.ArrowLeft || this.keys.a) x -= 1;
@@ -2183,8 +2570,11 @@ class CampusWorld {
       if (distance < min) { min = distance; nearest = { type: 'building', id: b.id, name: b.name, event: b.event, x: b.doorX, y: b.doorY }; }
     });
     NPCS.forEach(n => {
-      const distance = Math.hypot(p.x - n.x, p.y - n.y);
-      if (distance < Math.min(min, 82)) { min = distance; nearest = { type: 'npc', id: n.id, name: n.name, event: n.event, x: n.x, y: n.y }; }
+      const visitor = this.visitors[n.id];
+      const nx = visitor ? visitor.x : n.x;
+      const ny = visitor ? visitor.y : n.y;
+      const distance = Math.hypot(p.x - nx, p.y - ny);
+      if (distance < Math.min(min, 82)) { min = distance; nearest = { type: 'npc', id: n.id, name: n.name, event: n.event, x: nx, y: ny }; }
     });
     return nearest;
   }

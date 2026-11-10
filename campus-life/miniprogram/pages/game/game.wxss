@@ -39,6 +39,27 @@
 .quest-meta-line{font-size:18rpx;color:#9a896e;margin-top:6rpx}
 .quest-arrow{font-size:38rpx;color:#9aa28f;margin-left:12rpx}
 
+/* ===== 请求事件 / 连锁事件 ===== */
+.header-actions{display:flex;align-items:center;gap:12rpx}
+.event-button{position:relative;font-size:28rpx}
+.event-badge{position:absolute;top:-8rpx;right:-10rpx;min-width:28rpx;height:28rpx;padding:0 7rpx;border-radius:14rpx;background:#c4694f;color:#fff;font-size:16rpx;line-height:28rpx;text-align:center;box-shadow:0 3rpx 9rpx rgba(0,0,0,.25)}
+.toast{position:absolute;z-index:30;top:calc(env(safe-area-inset-top) + 100rpx);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:5rpx;padding:18rpx 28rpx;border-radius:18rpx;background:rgba(255,253,242,.95);border:1rpx solid #e0d3b4;box-shadow:0 12rpx 36rpx rgba(44,65,51,.2)}
+.toast-title{font-size:21rpx;font-weight:600;color:#4b6b57}
+.toast-detail{font-size:17rpx;color:#8b7f66}
+.affinity-chip{margin-left:auto;flex:0 0 auto;padding:8rpx 15rpx;border-radius:20rpx;background:#f2eee2;border:1rpx solid #e2dbc8;color:#8a8574;font-size:15rpx;white-space:nowrap}
+.request-item{border-color:#d8b775;background:#fdf5e2}
+.request-badge{background:#e8c67f;color:#7a5c1e}
+.event-list{display:flex;flex-direction:column;gap:12rpx;margin:8rpx 0 24rpx;text-align:left}
+.event-row{display:flex;align-items:center;margin:0;padding:18rpx 20rpx;background:#f6f2e8;border:1rpx solid #e9e2d2;border-radius:14rpx;text-align:left;width:100%}
+.event-level{flex:0 0 auto;padding:7rpx 14rpx;border-radius:18rpx;background:#e3e5d9;color:#72816f;font-size:16rpx;margin-right:16rpx}
+.event-main{flex:1;display:flex;flex-direction:column;gap:5rpx;min-width:0}
+.event-name{font-size:22rpx;font-weight:600;color:#43564b}
+.event-sub{font-size:16rpx;color:#9a896e}
+.trigger-list{margin:8rpx 0 24rpx;padding:20rpx 22rpx;border-radius:14rpx;background:#f4f0e5;text-align:left}
+.trigger-head{font-size:16rpx;letter-spacing:3rpx;color:#a18e69;margin-bottom:13rpx}
+.trigger-row{display:flex;justify-content:space-between;gap:16rpx;padding:9rpx 0;font-size:19rpx;color:#5c6a5f}
+.trigger-in{color:#b08a5a}
+
 /* 全屏场景背景 */
 .modal-mask.scene-mode{background:transparent;backdrop-filter:none}
 .scene-full-art{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1}

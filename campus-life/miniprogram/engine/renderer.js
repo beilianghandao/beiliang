@@ -418,7 +418,7 @@ class CampusRenderer {
     const dir = (person.facing === 'up' || person.facing === 'left' || person.facing === 'right') ? person.facing : 'down';
     // 有立绘贴图就用贴图，没有（小程序端 / 图还没加载完）就退回逐笔绘制
     let tex = null;
-    if (isPlayer && person.moving) {
+    if (person.moving) {
       // 侧面走路有真·走路帧（腿真的换了姿势），左右交替两帧循环
       if (person._ph === undefined) person._ph = phaseSeed(person);
       const frame = Math.sin(time * .0104 + person._ph) > 0 ? 1 : 2;
@@ -482,7 +482,7 @@ class CampusRenderer {
      步态靠四件事叠出来 —— 离地起伏、重心左右移、上身剪切摆、落地轻微压缩。
      刻意不用整体 rotate：旋转会带着脚掌一起转，看着像崴脚。 */
   drawStandee(ctx, tex, person, isPlayer, time) {
-    const moving = isPlayer && !!person.moving;
+    const moving = !!person.moving;
     const h = isPlayer ? 152 : 138;
     const w = h * tex.w / tex.h;
     const squash = tex.squash || 1;
@@ -605,7 +605,7 @@ class CampusRenderer {
   }
 
   drawPersonRaw(ctx, person, isPlayer, time) {
-    const moving = isPlayer && !!person.moving;
+    const moving = !!person.moving;
     const dir = (person.facing === 'up' || person.facing === 'left' || person.facing === 'right') ? person.facing : 'down';
     const phase = time * .0125;
     const step = moving ? Math.sin(phase) : 0;
@@ -1522,7 +1522,12 @@ class CampusRenderer {
     const objects = [];
     TREE_POSITIONS.forEach(([x,y], i) => objects.push({ y, draw: () => this.drawTree(ctx, x, y, i) }));
     BUILDINGS.forEach(b => objects.push({ y: b.y + b.h, draw: () => this.drawBuilding(ctx, b) }));
-    NPCS.forEach(n => objects.push({ y: n.y, draw: () => this.drawPerson(ctx, n, false, time) }));
+    NPCS.forEach(n => {
+      // 主动找上门来的 NPC 画在它当下的位置，而不是出生点
+      const live = this.npcPositions && this.npcPositions[n.id];
+      const person = live ? { ...n, x: live.x, y: live.y, moving: live.moving, facing: live.facing } : n;
+      objects.push({ y: person.y, draw: () => this.drawPerson(ctx, person, false, time) });
+    });
     objects.push({ y: 850, draw: () => this.drawFountain(ctx) });
     objects.push({ y: player.y, draw: () => this.drawPerson(ctx, { ...player, ...character }, true, time) });
     objects.sort((a,b) => a.y - b.y).forEach(item => item.draw());
@@ -1537,8 +1542,27 @@ class CampusRenderer {
         text(ctx, `进入${b.name}`, b.doorX, b.doorY - 26, 13, '#fff8df', 'center', 'bold');
       }
     });
+    this.drawRequestMarkers(ctx, time);
     ctx.restore();
     this.drawVignette(ctx);
+  }
+
+  /* 有请求找上门的 NPC，头顶冒一个感叹号 */
+  drawRequestMarkers(ctx, time) {
+    Object.keys(this.requestNpcs || {}).forEach(id => {
+      const npc = NPCS.find(n => n.id === id);
+      if (!npc) return;
+      const live = this.npcPositions && this.npcPositions[id];
+      const x = live ? live.x : npc.x;
+      const y = live ? live.y : npc.y;
+      const bob = Math.sin(time * .005) * 4;
+      ctx.save();
+      ctx.fillStyle = '#f7d774';
+      ctx.beginPath(); ctx.arc(x, y - 178 + bob, 15, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,88,32,.5)'; ctx.lineWidth = 2; ctx.stroke();
+      text(ctx, '!', x, y - 178 + bob + 6, 18, '#6b5631', 'center', 'bold');
+      ctx.restore();
+    });
   }
 
   drawVignette(ctx) {
