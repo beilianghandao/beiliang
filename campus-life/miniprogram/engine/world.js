@@ -7,11 +7,61 @@ class CampusWorld {
     this.keys = {};
     this.target = null;
     this.nearby = null;
+    this.visitors = {};   // 主动找上门来的 NPC：id -> { x, y, npc, state }
   }
 
   setInput(x, y) { this.input.x = x; this.input.y = y; this.target = null; }
   setKey(key, pressed) { this.keys[key] = pressed; }
   setTarget(x, y) { this.target = { x, y }; }
+
+  // 让 NPC 离开原来的位置，过来找你
+  sendNpc(npcId) {
+    const npc = NPCS.find(n => n.id === npcId);
+    if (!npc) return null;
+    const visitor = this.visitors[npcId];
+    if (visitor) { visitor.state = 'approach'; return visitor; }
+    const created = { x: npc.x, y: npc.y, npc, state: 'approach' };
+    this.visitors[npcId] = created;
+    return created;
+  }
+
+  // 事办完了，送回原来的位置
+  dismissNpc(npcId) {
+    const visitor = this.visitors[npcId];
+    if (visitor) visitor.state = 'leave';
+  }
+
+  // NPC 的实时位置（给渲染器用）
+  visitorPositions() {
+    const map = {};
+    Object.keys(this.visitors).forEach(id => {
+      map[id] = { x: this.visitors[id].x, y: this.visitors[id].y };
+    });
+    return map;
+  }
+
+  updateVisitors(delta) {
+    const speed = 155 * Math.min(delta, 40) / 1000;
+    Object.keys(this.visitors).forEach(id => {
+      const v = this.visitors[id];
+      const target = v.state === 'approach' ? this.player : { x: v.npc.x, y: v.npc.y };
+      const dx = target.x - v.x;
+      const dy = target.y - v.y;
+      const distance = Math.hypot(dx, dy);
+      const stopAt = v.state === 'approach' ? 74 : 6;
+      if (distance > stopAt) {
+        const nextX = v.x + dx / distance * speed;
+        const nextY = v.y + dy / distance * speed;
+        if (!this.collides(nextX, v.y)) v.x = nextX;
+        if (!this.collides(v.x, nextY)) v.y = nextY;
+        v.moving = true;
+        v.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      } else {
+        v.moving = false;
+        if (v.state === 'leave') delete this.visitors[id];
+      }
+    });
+  }
 
   collides(x, y) {
     if (x < 35 || y < 55 || x > 2365 || y > 1550) return true;
@@ -19,6 +69,7 @@ class CampusWorld {
   }
 
   update(delta) {
+    this.updateVisitors(delta);
     let x = this.input.x;
     let y = this.input.y;
     if (this.keys.ArrowLeft || this.keys.a) x -= 1;
@@ -60,8 +111,11 @@ class CampusWorld {
       if (distance < min) { min = distance; nearest = { type: 'building', id: b.id, name: b.name, event: b.event, x: b.doorX, y: b.doorY }; }
     });
     NPCS.forEach(n => {
-      const distance = Math.hypot(p.x - n.x, p.y - n.y);
-      if (distance < Math.min(min, 82)) { min = distance; nearest = { type: 'npc', id: n.id, name: n.name, event: n.event, x: n.x, y: n.y }; }
+      const visitor = this.visitors[n.id];
+      const nx = visitor ? visitor.x : n.x;
+      const ny = visitor ? visitor.y : n.y;
+      const distance = Math.hypot(p.x - nx, p.y - ny);
+      if (distance < Math.min(min, 82)) { min = distance; nearest = { type: 'npc', id: n.id, name: n.name, event: n.event, x: nx, y: ny }; }
     });
     return nearest;
   }

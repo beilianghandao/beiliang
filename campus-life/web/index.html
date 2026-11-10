@@ -26,16 +26,17 @@
 
   <main id="game-screen" class="game-page hidden">
     <canvas id="campus"></canvas><div class="top-shade"></div>
-    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><button id="guide-button" class="header-button" aria-label="校园指南">?</button></header>
+    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><div class="header-actions"><button id="event-button" class="header-button event-button" aria-label="等着你的事">✉<span id="event-badge" class="event-badge hidden">0</span></button><button id="guide-button" class="header-button" aria-label="校园指南">?</button></div></header>
     <section class="status-card"><div class="profile-row"><div id="profile-avatar" class="profile-avatar"></div><div class="profile-info"><b id="profile-name"></b><small id="profile-title"></small></div><div class="energy">精力 <b id="energy-value"></b></div></div><div class="energy-track"><i id="energy-bar"></i></div><div id="stats-row" class="stats-row"></div></section>
     <section class="quest-card"><div class="quest-label">大学四年 · 目标</div><p>探索 8 个场景 × 16 段故事，读完八个学期</p><div class="quest-progress"><i id="quest-bar"></i></div><div class="quest-meta"><span id="quest-count"></span><span id="quest-percent"></span></div></section>
     <div class="keyboard-tip">WASD / 方向键移动 · 点击地图寻路 · E 互动</div>
     <div id="location-toast" class="location-toast hidden"></div>
+    <div id="toast" class="toast hidden"></div>
     <div id="joystick" class="joystick"><div class="joy-ring"></div><div class="joy-arrows">⌃</div><div id="joy-knob" class="joy-knob"></div></div>
     <div class="action-area"><button id="action-button" class="action-button"><span>＋</span><b>探索</b></button><small>走近发光入口</small></div>
     <button id="exam-button" class="exam-button hidden">期末周已到达 · 进入考试 →</button>
     <div id="modal-mask" class="modal-mask hidden"><div id="modal-content"></div></div>
   </main>
-  <script src="bundle.js?v=55cdb9ed"></script><script src="app.js?v=55cdb9ed"></script>
+  <script src="bundle.js?v=620f0640"></script><script src="app.js?v=620f0640"></script>
 </body>
 </html>

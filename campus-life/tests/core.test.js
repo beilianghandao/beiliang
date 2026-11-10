@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { CHARACTERS, EVENTS, STAT_META, ENDINGS, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
+const { CHARACTERS, EVENTS, STAT_META, ENDINGS, REQUESTS, CHAIN_EVENTS, getExamQuestions, semesterLabel } = require('../miniprogram/data/content');
 const { GameCore } = require('../miniprogram/engine/core');
 const { CampusWorld } = require('../miniprogram/engine/world');
 
@@ -147,6 +147,155 @@ test('世界边界和建筑碰撞可阻挡人物，移动更新会改变位置',
   assert.strictEqual(world.collides(1000, 800), false);
   world.setInput(1, 0); world.update(300);
   assert.ok(world.player.x > 1370);
+});
+
+// ============ 请求事件调度器 ============
+
+test('请求调度器会把符合条件的请求排给 NPC 上门', () => {
+  const game = new GameCore('lin');
+  assert.strictEqual(game.requests.length, 0, '开局不该有人来敲门');
+  const result = game.applyChoice('library', 0, 0);
+  assert.ok(result.request, '第一次行动后应当有请求上门');
+  assert.strictEqual(game.requests.length, 1);
+  assert.strictEqual(game.requests[0].id, result.request.id);
+  assert.strictEqual(game.requests[0].npc, result.request.npc);
+});
+
+test('答应请求加好感度，拒绝则掉好感度', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('library', 0, 0);
+  const request = game.pendingRequests()[0];
+  const accepted = game.resolveRequest(request.id, 0);
+  assert.ok(accepted.affinity > 0);
+  assert.strictEqual(game.affinityOf(request.npc), accepted.affinity);
+  assert.strictEqual(game.requests.length, 0);
+  assert.ok(game.resolvedRequests.includes(request.id));
+  // 同一个请求不会再来第二次
+  game.applyChoice('library', 0, 0);
+  assert.ok(!game.pendingRequests().some(item => item.id === request.id));
+});
+
+test('拒绝请求会拉低好感度', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('library', 0, 0);
+  const request = game.pendingRequests()[0];
+  const refused = game.resolveRequest(request.id, 1);
+  assert.ok(refused.affinity < 0);
+  assert.strictEqual(game.affinityOf(request.npc), refused.affinity);
+});
+
+test('好感度达到门槛才解锁更高级的请求', () => {
+  const game = new GameCore('lin');
+  game.semester = 3;
+  game.affinity.npc1 = 29;
+  assert.ok(!game.eligibleRequests().some(item => item.id === 'req-npc1-b'));
+  game.affinity.npc1 = 30;
+  assert.ok(game.eligibleRequests().some(item => item.id === 'req-npc1-b'));
+});
+
+test('请求拖太久没人管，NPC 会走并掉好感度', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('library', 0, 0);
+  const request = game.pendingRequests()[0];
+  const before = game.affinityOf(request.npc);
+  for (let i = 0; i < 4; i++) game.applyChoice('library', 0, 0);
+  assert.ok(game.affinityOf(request.npc) < before, '被放鸽子的关系应该变差');
+});
+
+test('关系维护到位时，同一个 NPC 场景的行动收益更高', () => {
+  const cold = new GameCore('lin'); cold.applyChoice('library', 0, 0);
+  const warm = new GameCore('lin'); warm.affinity.npc1 = 30; warm.applyChoice('library', 0, 0);
+  assert.strictEqual(cold.stats.knowledge, 46 + 8);
+  assert.strictEqual(warm.stats.knowledge, 46 + Math.round(8 * 1.3));
+});
+
+// ============ chain 字段与延迟触发队列 ============
+
+test('翘课的连锁事件排进延迟队列，不会当场发作', () => {
+  const game = new GameCore('lin');
+  const result = game.applyChoice('classroom', 0, 2);   // 从后门溜出去
+  assert.ok(result.chained, '这个选择应该埋下后果');
+  assert.strictEqual(game.triggers.length, 1);
+  assert.strictEqual(game.triggers[0].eventId, 'roll-call');
+  assert.strictEqual(game.pendingChains.length, 0, '不能当场发作');
+});
+
+test('连锁事件按周数依次发作：点名 → 辅导员谈话 → 家长来电', () => {
+  // 往前推进一周；撞上期末就先考完，让时间继续走
+  const advance = game => {
+    if (game.examReady) {
+      const questions = game.startExam();
+      questions.forEach(q => game.answerExam(q.answer));
+      game.finishExam();
+      return;
+    }
+    game.applyChoice('library', 0, 0);
+  };
+
+  const game = new GameCore('lin');
+  game.applyChoice('classroom', 0, 2);
+  assert.deepStrictEqual(game.pendingChains, []);
+
+  advance(game);                                         // 点名发作
+  assert.deepStrictEqual(game.pendingChains, ['roll-call']);
+  assert.strictEqual(game.triggers[0].eventId, 'counselor-talk', '下一级应自动排队');
+  assert.strictEqual(game.triggers[0].fireAt, game.absoluteWeek + 2);
+
+  advance(game);                                         // 还没到
+  assert.deepStrictEqual(game.pendingChains, ['roll-call']);
+
+  advance(game);                                         // 辅导员谈话发作
+  assert.deepStrictEqual(game.pendingChains, ['roll-call', 'counselor-talk']);
+  assert.strictEqual(game.triggers[0].eventId, 'parent-call');
+
+  advance(game);                                         // 还没到
+  advance(game);                                         // 家长来电发作
+  assert.deepStrictEqual(game.pendingChains, ['roll-call', 'counselor-talk', 'parent-call']);
+  assert.strictEqual(game.triggers.length, 0, '链子到第三级就该停');
+});
+
+test('连锁事件处理后从待办里消失，且不能重复结算', () => {
+  const game = new GameCore('lin');
+  game.applyChoice('classroom', 0, 2);
+  game.applyChoice('library', 0, 0);
+  const outcome = game.resolveChain('roll-call', 0);
+  assert.ok(outcome.reply);
+  assert.ok(outcome.applied);
+  assert.ok(!game.pendingChains.includes('roll-call'));
+  assert.strictEqual(game.resolveChain('roll-call', 0), null);
+});
+
+test('连锁事件每一级都有选项，且能接到对应的场景美术', () => {
+  ['roll-call', 'counselor-talk', 'parent-call'].forEach(id => {
+    const event = CHAIN_EVENTS[id];
+    assert.ok(event, id);
+    assert.ok(event.title && event.text, id);
+    assert.ok(event.choices.length >= 2, id);
+    assert.ok(EVENTS[event.scene], `${id} 的场景 ${event.scene} 必须存在`);
+    event.choices.forEach(choice => {
+      Object.keys(choice.effects).forEach(key => {
+        assert.ok(key === 'energy' || Object.keys(STAT_META).includes(key), `${id}:${key}`);
+      });
+    });
+  });
+  assert.strictEqual(CHAIN_EVENTS['roll-call'].next, 'counselor-talk');
+  assert.strictEqual(CHAIN_EVENTS['counselor-talk'].next, 'parent-call');
+  assert.strictEqual(CHAIN_EVENTS['parent-call'].next, null);
+});
+
+test('每个请求都有答应与拒绝两个分支，并写明好感度变化', () => {
+  assert.ok(REQUESTS.length >= 8, '请求数量应该足够撑起四年');
+  REQUESTS.forEach(request => {
+    assert.ok(request.id && request.npc && request.title && request.text, request.id);
+    assert.strictEqual(request.choices.length, 2, request.id);
+    request.choices.forEach(choice => {
+      assert.ok(choice.text && choice.reply, request.id);
+      assert.ok(typeof choice.affinity === 'number' && choice.affinity !== 0, request.id);
+      Object.keys(choice.effects).forEach(key => {
+        assert.ok(key === 'energy' || Object.keys(STAT_META).includes(key), `${request.id}:${key}`);
+      });
+    });
+  });
 });
 
 console.log(`\nAll ${passed} gameplay tests passed.`);

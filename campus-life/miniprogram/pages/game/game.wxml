@@ -4,7 +4,7 @@
   <view class="game-header">
     <view class="brand"><view class="brand-seal">梧</view><view><view class="brand-title">青梧大学</view><view class="brand-sub">CAMPUS LIFE</view></view></view>
     <view class="week-pill"><text class="week-dot"></text>{{semesterName}} · 第 {{weekLabel}} / 4 周</view>
-    <view class="header-button" bindtap="openGuide">?</view>
+    <view class="header-actions"><view class="header-button event-button" bindtap="showEvents">✉<text wx:if="{{eventBadge}}" class="event-badge">{{eventBadge}}</text></view><view class="header-button" bindtap="openGuide">?</view></view>
   </view>
 
   <view class="status-card">
@@ -16,20 +16,26 @@
   <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 16 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view></view>
 
   <view wx:if="{{nearby && !modal}}" class="location-toast"><text class="location-pin">⌖</text><view><text class="location-name">{{nearby.name}}</text><text class="location-tip">点击右下角，查看可接任务</text></view></view>
+  <view wx:if="{{toastVisible}}" class="toast"><text class="toast-title">{{toastTitle}}</text><text wx:if="{{toastDetail}}" class="toast-detail">{{toastDetail}}</text></view>
 
   <view class="joystick" bindtouchstart="joyStart" bindtouchmove="joyMove" bindtouchend="joyEnd" bindtouchcancel="joyEnd"><view class="joy-ring"></view><view class="joy-arrows">⌃</view><view class="joy-knob" style="transform:translate({{joyX}}px,{{joyY}}px)"></view></view>
   <view class="action-area"><button class="action-button {{nearby ? 'active' : ''}}" bindtap="interact"><text class="action-icon">{{nearby ? '✦' : '＋'}}</text><text>{{nearby ? (nearby.type === 'npc' ? '聊一聊' : '进入') : '探索'}}</text></button><view class="action-tip">走近发光入口</view></view>
   <button wx:if="{{examReady && !modal}}" class="exam-button" bindtap="showExamIntro">{{examSemesterName || semesterName}}期末考 · 进入考试 →</button>
 
-  <view wx:if="{{modal}}" class="modal-mask {{modal === 'scene' || modal === 'quest' || modal === 'reply' ? 'story-mask scene-mode' : ''}}">
-    <canvas wx:if="{{modal === 'scene' || modal === 'quest' || modal === 'reply'}}" id="scene-full-art" type="2d" class="scene-full-art"></canvas>
+  <view wx:if="{{modal}}" class="modal-mask {{modal === 'scene' || modal === 'quest' || modal === 'reply' || modal === 'request' || modal === 'chain' ? 'story-mask scene-mode' : ''}}">
+    <canvas wx:if="{{modal === 'scene' || modal === 'quest' || modal === 'reply' || modal === 'request' || modal === 'chain'}}" id="scene-full-art" type="2d" class="scene-full-art"></canvas>
 
     <view wx:if="{{modal === 'scene'}}" class="story-panel scene-panel">
       <view class="story-visual" style="background:linear-gradient(130deg,{{scene.art.sky[0]}},{{scene.art.sky[1]}})"><view class="story-place">{{scene.place}}</view><view class="scene-title-over">{{scene.name}}</view><view class="story-lines"></view></view>
       <view class="story-content">
         <view class="story-kicker">SCENE · {{semesterName}}</view>
         <view class="story-title">{{scene.name}} · 可接任务</view>
-        <view class="speaker-row"><view class="speaker-avatar" style="background:{{scene.color}}">{{scene.avatar}}</view><view><view class="speaker-name">{{scene.speaker}}</view><view class="speaker-role">{{scene.role}}</view></view></view>
+        <view class="speaker-row"><view class="speaker-avatar" style="background:{{scene.color}}">{{scene.avatar}}</view><view><view class="speaker-name">{{scene.speaker}}</view><view class="speaker-role">{{scene.role}}</view></view><text wx:if="{{affinityText}}" class="affinity-chip">{{affinityText}}</text></view>
+        <button wx:if="{{request}}" class="quest-item request-item" data-id="{{request.id}}" bindtap="openRequestFromList">
+          <text class="quest-badge request-badge">来找你了</text>
+          <view class="quest-mid"><text class="quest-name">{{request.title}}</text><text class="quest-meta-line">{{request.npcName}} 有事相求 · 答应或拒绝都会影响你们的关系</text></view>
+          <text class="quest-arrow">›</text>
+        </button>
         <view class="quest-list">
           <button wx:for="{{sceneProgress}}" wx:key="index" class="quest-item {{item.done ? 'done' : ''}}" data-index="{{item.index}}" bindtap="chooseQuest">
             <text class="quest-badge">{{item.done ? '✓ 已完成' : '任务 '}}{{item.done ? '' : item.index + 1}}</text>
@@ -55,14 +61,68 @@
       </view>
     </view>
 
-    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">故事已收入图鉴</view><view class="reply-title">{{quest.title}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view></view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button></view>
+    <view wx:if="{{modal === 'request'}}" class="story-panel">
+      <view class="story-visual" style="background:linear-gradient(130deg,{{requestScene.art.sky[0]}},{{requestScene.art.sky[1]}})"><view class="story-place">{{requestScene.place}}</view><view class="story-symbol">{{requestInitial}}</view><view class="story-lines"></view></view>
+      <view class="story-content">
+        <view class="story-kicker">INCOMING REQUEST · {{semesterName}}</view>
+        <view class="story-title">{{request.title}}</view>
+        <view class="speaker-row"><view class="speaker-avatar" style="background:{{requestScene.color}}">{{requestInitial}}</view><view><view class="speaker-name">{{requestSpeaker}}</view><view class="speaker-role">{{requestRole}}</view></view><text class="affinity-chip">{{requestAffinity}}</text></view>
+        <view class="story-text">{{request.text}}</view>
+        <view class="choices">
+          <button wx:for="{{requestChoices}}" wx:key="index" class="choice" data-index="{{index}}" bindtap="chooseRequest"><view class="choice-index">{{index + 1}}</view><view class="choice-body"><view>{{item.text}}</view><view class="choice-hint">{{item.hint}}</view></view><text class="choice-arrow">›</text></button>
+        </view>
+        <view class="story-footer">关系需要经营 —— 答应还是拒绝，都会被记住</view>
+      </view>
+    </view>
+
+    <view wx:if="{{modal === 'chain'}}" class="story-panel">
+      <view class="story-visual" style="background:linear-gradient(130deg,{{chainScene.art.sky[0]}},{{chainScene.art.sky[1]}})"><view class="story-place">{{chain.place}}</view><view class="story-symbol">{{chainInitial}}</view><view class="story-lines"></view></view>
+      <view class="story-content">
+        <view class="story-kicker">CONSEQUENCE · 连锁第 {{chain.level}} 级</view>
+        <view class="story-title">{{chain.title}}</view>
+        <view class="speaker-row"><view class="speaker-avatar" style="background:{{chainScene.color}}">{{chainInitial}}</view><view><view class="speaker-name">{{chain.speaker}}</view><view class="speaker-role">{{chain.role}}</view></view></view>
+        <view class="story-text">{{chain.text}}</view>
+        <view class="choices">
+          <button wx:for="{{chainChoices}}" wx:key="index" class="choice" data-index="{{index}}" bindtap="chooseChain"><view class="choice-index">{{index + 1}}</view><view class="choice-body"><view>{{item.text}}</view><view class="choice-hint">{{item.hint}}</view></view><text class="choice-arrow">›</text></button>
+        </view>
+        <view class="story-footer">一件小事，滚成了另一件事</view>
+      </view>
+    </view>
+
+    <view wx:if="{{modal === 'events'}}" class="small-panel">
+      <view class="panel-close" bindtap="closeModal">×</view>
+      <view class="panel-kicker">ON YOUR DESK</view>
+      <view class="panel-title">等着你的事</view>
+      <view class="event-list">
+        <button wx:for="{{eventChains}}" wx:key="id" class="event-row" data-id="{{item.id}}" bindtap="openChainFromList">
+          <text class="event-level">连锁 {{item.level}}</text>
+          <view class="event-main"><text class="event-name">{{item.title}}</text><text class="event-sub">{{item.sub}}</text></view>
+          <text class="quest-arrow">›</text>
+        </button>
+        <button wx:for="{{eventRequests}}" wx:key="id" class="event-row" data-id="{{item.id}}" bindtap="openRequestFromList">
+          <text class="event-level">请求</text>
+          <view class="event-main"><text class="event-name">{{item.title}}</text><text class="event-sub">{{item.sub}}</text></view>
+          <text class="quest-arrow">›</text>
+        </button>
+        <view wx:if="{{!eventChains.length && !eventRequests.length}}" class="exam-desc">暂时没有需要马上处理的事。</view>
+      </view>
+      <view wx:if="{{eventTriggers.length}}" class="trigger-list">
+        <view class="trigger-head">延迟触发队列</view>
+        <view wx:for="{{eventTriggers}}" wx:key="title" class="trigger-row"><text>{{item.title}}</text><text class="trigger-in">{{item.inWeeks}} 周后发作</text></view>
+      </view>
+      <button class="secondary-button" bindtap="closeModal">知道了</button>
+    </view>
+
+    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button></view>
 
     <view wx:if="{{modal === 'guide'}}" class="small-panel"><view class="panel-close" bindtap="closeModal">×</view><view class="panel-kicker">NEW STUDENT HANDBOOK</view><view class="panel-title">新生校园指南</view>
       <view class="guide-item"><text>01</text><view><text class="guide-bold">四年八学期</text><text class="guide-para">8 个学期覆盖完整大学四年。每学期 4 周行动 + 1 次期末考；每个场景有 2 个可接任务。</text></view></view>
       <view class="guide-item"><text>02</text><view><text class="guide-bold">自由探索</text><text class="guide-para">拖动摇杆或点击地面寻路。走近建筑入口与 NPC 即可进入场景接任务。</text></view></view>
       <view class="guide-item"><text>03</text><view><text class="guide-bold">做出选择</text><text class="guide-para">16 个任务各有多个选项。重复完成仍有收益，但属性成长会递减。</text></view></view>
-      <view class="guide-item"><text>04</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
-      <view class="guide-item"><text>05</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道情境题 + 日常成长计分。大四下学期结束后，根据四年积累走向毕业结局。</text></view></view>
+      <view class="guide-item"><text>04</text><view><text class="guide-bold">有人会来找你</text><text class="guide-para">同学会带着请求找上门，你可以答应或拒绝。好感度记录你每一次选择，也决定你们之后能走多近。</text></view></view>
+      <view class="guide-item"><text>05</text><view><text class="guide-bold">小决定会滚大</text><text class="guide-para">一次翘课会在几周后连锁引发点名、辅导员谈话、家长来电。右上角的 ✉ 提醒你还有什么事没处理。</text></view></view>
+      <view class="guide-item"><text>06</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
+      <view class="guide-item"><text>07</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道情境题 + 日常成长计分。大四下学期结束后，根据四年积累走向毕业结局。</text></view></view>
       <button class="secondary-button" bindtap="closeModal">我准备好了</button><button class="text-button" bindtap="restart">重新选择角色</button>
     </view>
 
