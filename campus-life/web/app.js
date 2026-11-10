@@ -1,5 +1,7 @@
-const { CHARACTERS, STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, affinityTier, getExamQuestions, semesterLabel } = CampusRequire('content');
+const { CHARACTERS, STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, affinityTier, getExamQuestions, semesterLabel, statName } = CampusRequire('content');
 const { GameCore } = CampusRequire('core');
+const { buildChoiceLogView } = CampusRequire('choicelog');
+const { randomSeedCode, resolveSeedInput, applySeedInput } = CampusRequire('random');
 const { CampusRenderer, drawSceneArt, preloadStandees } = CampusRequire('renderer');
 const { CampusWorld } = CampusRequire('world');
 
@@ -15,9 +17,14 @@ const modalMask = $('#modal-mask');
 const modalContent = $('#modal-content');
 const paleColors = ['#f0d9ce', '#d8e1eb', '#efe0c4', '#d5e4d8'];
 let selected = 'lin';
-let core, world, renderer, canvas, ctx, modal = '', sceneId = '', questIndex = 0, artLoop = null;
+let core, world, renderer, canvas, ctx, modal = '', modalMode = '', sceneId = '', questIndex = 0, artLoop = null;
 let activeRequest = null, activeChain = null, toastTimer = null, pendingNotice = null;
 let lastTime = performance.now();
+// 种子码：开局前可以换，进了校园就一直带着，同码必然复现同一局
+let seedCode = randomSeedCode(Math.random);
+// 打开「选择日志」前的界面，关掉日志时原样回去
+let logHistory = null;
+let replyHtml = '';
 
 // 哪些 NPC 带着请求找上门（给渲染器画感叹号用）
 function requestNpcMap() {
@@ -71,10 +78,41 @@ $('#character-grid').addEventListener('click', event => {
 });
 $('#start-button').addEventListener('click', startGame);
 
+// 种子码：默认给一局新的，也可以换成别人的种子码复现同一局
+function syncSeedCode() {
+  $('#seed-code').textContent = seedCode;
+}
+function showSeedHint(text, error = false) {
+  const hint = $('#seed-hint');
+  hint.textContent = text;
+  hint.classList.toggle('error', error);
+}
+// 按下「使用」：留空就摇一局新的，填了就用填的那个，填错了说清楚并退回自动生成的码
+function useSeedCode() {
+  const result = applySeedInput($('#seed-input').value, Math.random);
+  if (result.error) {
+    showSeedHint(`${result.error}；本局仍用种子码 ${seedCode}`, true);
+    return;
+  }
+  seedCode = result.code;
+  syncSeedCode();
+  $('#seed-input').value = seedCode;
+  showSeedHint(result.hint);
+}
+$('#seed-apply').addEventListener('click', useSeedCode);
+$('#seed-input').addEventListener('keydown', event => { if (event.key === 'Enter') useSeedCode(); });
+
 function startGame() {
+  // 开局前再确认一次输入框：留空就用这一局自动生成的码，填了就用填的那个，填错了不开局
+  const result = resolveSeedInput($('#seed-input').value);
+  if (result.error) {
+    showSeedHint(`${result.error}；请改对后再开始，或清空输入框用本局种子码 ${seedCode}`, true);
+    return;
+  }
+  if (!result.blank) { seedCode = result.code; syncSeedCode(); }
   // 先把所有角色的场景立绘丢进加载队列，避免进游戏后小人先是用线条画、再突然变成立绘
   preloadStandees(CHARACTERS.map(c => c.id).concat(NPCS.map(n => n.id)));
-  core = new GameCore(selected); world = new CampusWorld();
+  core = new GameCore(selected, seedCode); world = new CampusWorld();
   selectScreen.classList.add('hidden'); gameScreen.classList.remove('hidden');
   canvas = $('#campus'); ctx = canvas.getContext('2d');
   renderer = new CampusRenderer(ctx, innerWidth, innerHeight);
@@ -124,6 +162,8 @@ function updateHUD() {
   badge.textContent = pending;
   badge.classList.toggle('hidden', !pending);
   $('#event-button').classList.toggle('alert', pending > 0);
+  const seedPill = $('#seed-pill');
+  if (seedPill) seedPill.textContent = `种子 ${core.seedCode}`;
 }
 
 function updateNearby(nearby) {
@@ -135,14 +175,14 @@ function updateNearby(nearby) {
 }
 
 function openModal(name, html, mode = '') {
-  modal = name; stopArt();
+  modal = name; modalMode = mode; stopArt();
   world.setInput(0, 0); Object.keys(world.keys).forEach(key => world.keys[key] = false);
   modalContent.innerHTML = html;
   modalMask.classList.remove('hidden');
   modalMask.classList.toggle('story-mask', mode === 'story');
   modalMask.classList.toggle('scene-mode', mode === 'scene');
 }
-function closeModal() { modal = ''; stopArt(); modalMask.classList.add('hidden'); modalContent.innerHTML = ''; }
+function closeModal() { modal = ''; modalMode = ''; stopArt(); modalMask.classList.add('hidden'); modalContent.innerHTML = ''; }
 
 function stopArt() { if (artLoop) cancelAnimationFrame(artLoop); artLoop = null; }
 function startArt(canvasEl, art) {
@@ -157,6 +197,37 @@ function startArt(canvasEl, art) {
 
 function artCanvas(art) {
   return `<canvas id="scene-full-art"></canvas><div class="scene-vignette" style="background:linear-gradient(180deg,transparent 30%,${art.sky[0]}ee 100%)"></div>`;
+}
+
+// 选择日志：随时翻看做过哪些选择、影响了什么
+const logLink = '<button class="panel-link" data-action="log">查看选择日志 ›</button>';
+
+function showReply(html = replyHtml) {
+  replyHtml = html;
+  openModal('reply', html, 'scene');
+  startArt($('#scene-full-art'), EVENTS[sceneId].art);
+}
+
+function showLog() {
+  logHistory = modal && modal !== 'log' ? { name: modal, html: modalContent.innerHTML, mode: modalMode } : null;
+  const entries = buildChoiceLogView(core.choiceLog);
+  const list = entries.length ? entries.map(item => `
+    <div class="log-entry">
+      <div class="log-meta"><span>${item.semesterName} · 第 ${item.week} 周</span><span class="log-scene">${item.sceneName}</span></div>
+      <div class="log-quest">${item.questTitle}</div>
+      <div class="log-choice">${item.choiceText}</div>
+      <div class="log-effects">${item.effects.map(e => `<span class="effect-item ${e.value >= 0 ? 'positive' : 'negative'}">${e.name} ${e.value >= 0 ? '+' : ''}${e.value}</span>`).join('')}<span class="log-flag${item.repeat ? ' repeat' : ''}">${item.repeatLabel}</span></div>
+    </div>`).join('') : '<p class="log-empty">还没有做过任何选择，去校园里走走吧。</p>';
+  openModal('log', `<article class="small-panel log-panel"><button class="panel-close" data-action="close-log">×</button><div class="panel-kicker">CHOICE LOG</div><h2 class="panel-title">选择日志</h2><div class="log-list">${list}</div><button class="primary-button" data-action="close-log">回到刚才的地方</button></article>`);
+}
+
+function closeLog() {
+  const back = logHistory; logHistory = null;
+  if (!back) { closeModal(); updateHUD(); return; }
+  if (back.name === 'scene') showScene(sceneId);
+  else if (back.name === 'quest') showQuest(questIndex);
+  else if (back.name === 'reply') showReply();
+  else openModal(back.name, back.html, back.mode);
 }
 
 function showScene(id) {
@@ -187,6 +258,7 @@ function showScene(id) {
         <span class="quest-arrow">›</span>
       </button>`).join('')}</div>
       <div class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期</div>
+      ${logLink}
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
 }
@@ -202,6 +274,7 @@ function showQuest(index) {
       <div class="story-text">${quest.text}</div>
       <div class="choices">${quest.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${choice.hint}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
       <div class="story-footer">选择没有标准答案，它会塑造独一无二的你</div>
+      ${logLink}
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
 }
@@ -277,22 +350,22 @@ function showGuide() {
 }
 
 function showExamIntro() {
-  openModal('examIntro', `<article class="small-panel"><div class="exam-emblem">末</div><div class="panel-kicker">FINAL EXAMINATION</div><h2 class="panel-title">${core.semesterName} · 期末考试</h2><p class="exam-desc">${core.semester < 8 ? '一学期的探索与选择，都将成为此刻的底气。' : '这是大学生涯的最后一场考试。'}共 5 道情境题，日常学识与实践也会影响成绩。</p><div class="exam-rule"><span>答题正确</span><b>50 分</b><span>日常成长</span><b>50 分</b></div><button class="primary-button" data-action="start-exam">开始作答</button></article>`);
+  openModal('examIntro', `<article class="small-panel"><div class="exam-emblem">末</div><div class="panel-kicker">FINAL EXAMINATION</div><h2 class="panel-title">${core.semesterName} · 期末考试</h2><p class="exam-desc">${core.semester < 8 ? '一学期的探索与选择，都将成为此刻的底气。' : '这是大学生涯的最后一场考试。'}共 5 道情境题，日常学识与实践也会影响成绩。</p><div class="exam-rule"><span>答题正确</span><b>50 分</b><span>日常成长</span><b>50 分</b></div><button class="primary-button" data-action="start-exam">开始作答</button>${logLink}</article>`);
 }
 
 function showQuestion() {
   const questions = core.currentExam || [];
   const index = core.examAnswers.length;
   const q = questions[index]; if (!q) return showExamIntro();
-  openModal('exam', `<article class="small-panel"><div class="exam-progress-head"><span>第 ${core.semester} 学期期末考</span><span>${index + 1} / ${questions.length}</span></div><div class="exam-progress-track"><i style="width:${(index + 1) / questions.length * 100}%"></i></div><div class="exam-question">${q.question}</div><div class="exam-options">${q.options.map((option, i) => `<button data-answer="${i}"><span>${option}</span><span>›</span></button>`).join('')}</div><div class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</div></article>`);
+  openModal('exam', `<article class="small-panel"><div class="exam-progress-head"><span>第 ${core.semester} 学期期末考</span><span>${index + 1} / ${questions.length}</span></div><div class="exam-progress-track"><i style="width:${(index + 1) / questions.length * 100}%"></i></div><div class="exam-question">${q.question}</div><div class="exam-options">${q.options.map((option, i) => `<button data-answer="${i}"><span>${option}</span><span>›</span></button>`).join('')}</div><div class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</div>${logLink}</article>`);
 }
 
 function showSemesterResult(result) {
-  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div><p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>累计学期</span><b>${core.examScores.length} / 8</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button></article>`);
+  openModal('semester', `<article class="small-panel"><div class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</div><div class="panel-kicker">SEMESTER COMPLETE</div><h2 class="panel-title">${result.semesterName} 结束</h2><div class="score-ring"><b>${result.score}</b><small>期末成绩</small></div><p class="exam-desc">假期里你好好休整了一番，精力大幅恢复。<br>接下来是 <b>${semesterLabel(result.semester + 1)}</b>，继续书写你的大学故事。</p><div class="exam-rule"><span>答对</span><b>${result.correct} / 5 题</b><span>累计学期</span><b>${core.examScores.length} / 8</b></div><button class="primary-button" data-action="close">进入${semesterLabel(result.semester + 1)} →</button>${logLink}</article>`);
 }
 
 function showEnding(ending) {
-  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 四年旅程结束</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div><p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta]) => `<span>${meta.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><button class="primary-button" data-action="restart">开启另一种人生</button></article>`);
+  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 四年旅程结束</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div><p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta]) => `<span>${meta.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><div class="ending-seed">本局种子码 <b>${core.seedCode}</b> · 把它给同学，可以复现同一段四年</div>${logLink}<button class="primary-button" data-action="restart">开启另一种人生</button></article>`);
 }
 
 function interact() {
@@ -310,6 +383,7 @@ function interact() {
 }
 
 $('#guide-button').addEventListener('click', showGuide);
+$('#log-button').addEventListener('click', showLog);
 $('#action-button').addEventListener('click', interact);
 $('#exam-button').addEventListener('click', showExamIntro);
 $('#event-button').addEventListener('click', showEvents);
@@ -362,8 +436,8 @@ modalContent.addEventListener('click', event => {
       pendingNotice = { title: '事情找上门了', detail: names };
     }
     const scene = EVENTS[sceneId];
-    openModal('reply', `${artCanvas(scene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">故事已收入图鉴</div><h2 class="reply-title">${scene.quests[questIndex].title}</h2><p class="reply-text">${result.reply}</p><div class="effect-list">${effects}</div><button class="primary-button" data-action="continue">继续校园生活 →</button></article>`, 'scene');
-    startArt($('#scene-full-art'), scene.art); return;
+    showReply(`${artCanvas(scene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">故事已收入图鉴</div><h2 class="reply-title">${scene.quests[questIndex].title}</h2><p class="reply-text">${result.reply}</p><div class="effect-list">${effects}</div><button class="primary-button" data-action="continue">继续校园生活 →</button>${logLink}</article>`);
+    return;
   }
   const answer = event.target.closest('[data-answer]');
   if (answer) {
@@ -376,6 +450,8 @@ modalContent.addEventListener('click', event => {
   }
   const action = event.target.closest('[data-action]')?.dataset.action;
   if (action === 'close') { closeModal(); updateHUD(); flushNotice(); }
+  if (action === 'close-log') { closeLog(); }
+  if (action === 'log') { showLog(); }
   if (action === 'continue') { core.examReady ? showExamIntro() : closeModal(); flushNotice(); }
   if (action === 'start-exam') { core.startExam(); showQuestion(); }
   if (action === 'restart') location.reload();
@@ -410,3 +486,4 @@ function endJoystick() { knob.style.transform = ''; world.setInput(0, 0); }
 joystick.addEventListener('pointerup', endJoystick); joystick.addEventListener('pointercancel', endJoystick);
 
 characterCards();
+syncSeedCode();

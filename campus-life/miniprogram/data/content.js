@@ -17,6 +17,12 @@ const YEAR_NAMES = ['大一', '大二', '大三', '大四'];
 const SEMESTER_NAMES = ['上学期', '下学期'];
 const semesterLabel = semester => `${YEAR_NAMES[Math.floor((semester - 1) / 2)]}${SEMESTER_NAMES[(semester - 1) % 2]}`;
 
+// 属性 key → 界面上的名字；精力不在 STAT_META 里，单独给它一个名字
+function statName(key) {
+  if (key === 'energy') return '精力';
+  return STAT_META[key] ? STAT_META[key].name : key;
+}
+
 const BUILDINGS = [
   { id: 'library', name: '图书馆', subtitle: '把未知，读成已知', x: 890, y: 100, w: 480, h: 250, doorX: 1130, doorY: 380, color: '#d68c69', roof: '#934f43', icon: 'LIBRARY', event: 'library' },
   { id: 'teaching', name: '明德教学楼', subtitle: '今天也要好好上课', x: 190, y: 250, w: 450, h: 240, doorX: 415, doorY: 520, color: '#e4b36f', roof: '#b9754d', icon: 'LECTURE', event: 'classroom' },
@@ -215,7 +221,7 @@ const ENDINGS = [
   { id: 'ordinary', title: '正在生长的普通大人', tag: '未来可期', text: '四年过去，你没有成为最耀眼的人，却认真走过了每一天。学位帽抛向天空的那一刻，你知道：人生才刚刚开始。', color: '#7d9275' }
 ];
 
-// 10 题题库，每学期轮换 5 题
+// 10 题题库，每次期末考按种子抽 5 题
 const EXAM_BANK = [
   { question: '面对一个没有标准答案的复杂问题，更合理的第一步是？', options: ['等待别人给出结论', '拆解问题并确认已知条件', '直接选择最熟悉的答案', '回避问题'], answer: 1 },
   { question: '团队项目临近截止却出现故障，哪种做法最有效？', options: ['隐瞒问题', '一个人承担全部工作', '同步信息并拆分验证任务', '立即放弃项目'], answer: 2 },
@@ -377,4 +383,4 @@ const CHAIN_EVENTS = {
   }
 };
 
-module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES };
+module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES, statName };

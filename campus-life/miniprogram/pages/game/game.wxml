@@ -3,8 +3,13 @@
   <view class="top-shade"></view>
   <view class="game-header">
     <view class="brand"><view class="brand-seal">梧</view><view><view class="brand-title">青梧大学</view><view class="brand-sub">CAMPUS LIFE</view></view></view>
-    <view class="week-pill"><text class="week-dot"></text>{{semesterName}} · 第 {{weekLabel}} / 4 周</view>
-    <view class="header-actions"><view class="header-button event-button" bindtap="showEvents">✉<text wx:if="{{eventBadge}}" class="event-badge">{{eventBadge}}</text></view><view class="header-button" bindtap="openGuide">?</view></view>
+    <view class="header-right">
+      <view class="week-pill"><text class="week-dot"></text>{{semesterName}} · 第 {{weekLabel}} / 4 周</view>
+      <view class="seed-pill">{{seedCode}}</view>
+      <view class="header-button" bindtap="openLog">记</view>
+      <view class="header-button event-button" bindtap="showEvents">✉<text wx:if="{{eventBadge}}" class="event-badge">{{eventBadge}}</text></view>
+      <view class="header-button" bindtap="openGuide">?</view>
+    </view>
   </view>
 
   <view class="status-card">
@@ -44,6 +49,7 @@
           </button>
         </view>
         <view class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期</view>
+        <view class="panel-link" bindtap="openLog">查看选择日志 ›</view>
       </view>
     </view>
 
@@ -58,6 +64,7 @@
           <button wx:for="{{quest.choices}}" wx:key="index" class="choice" data-index="{{index}}" bindtap="chooseStory"><view class="choice-index">{{index + 1}}</view><view class="choice-body"><view>{{item.text}}</view><view class="choice-hint">{{item.hint}}{{questDone ? ' · 重温收益递减' : ''}}</view></view><text class="choice-arrow">›</text></button>
         </view>
         <view class="story-footer">选择没有标准答案，它会塑造独一无二的你</view>
+        <view class="panel-link" bindtap="openLog">查看选择日志 ›</view>
       </view>
     </view>
 
@@ -113,7 +120,7 @@
       <button class="secondary-button" bindtap="closeModal">知道了</button>
     </view>
 
-    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button></view>
+    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
 
     <view wx:if="{{modal === 'guide'}}" class="small-panel"><view class="panel-close" bindtap="closeModal">×</view><view class="panel-kicker">NEW STUDENT HANDBOOK</view><view class="panel-title">新生校园指南</view>
       <view class="guide-item"><text>01</text><view><text class="guide-bold">四年八学期</text><text class="guide-para">8 个学期覆盖完整大学四年。每学期 4 周行动 + 1 次期末考；每个场景有 2 个可接任务。</text></view></view>
@@ -126,12 +133,31 @@
       <button class="secondary-button" bindtap="closeModal">我准备好了</button><button class="text-button" bindtap="restart">重新选择角色</button>
     </view>
 
-    <view wx:if="{{modal === 'examIntro'}}" class="small-panel exam-intro"><view class="exam-emblem">末</view><view class="panel-kicker">FINAL EXAMINATION</view><view class="panel-title">{{examSemesterName}} · 期末考试</view><view class="exam-desc">{{isFinal ? '这是大学生涯的最后一场考试。' : '一学期的探索与选择，都将成为此刻的底气。'}}共 5 道情境题，日常学识与实践也会影响成绩。</view><view class="exam-rule"><text>答题正确</text><text class="exam-points">50 分</text><text>日常成长</text><text class="exam-points">50 分</text></view><button class="primary-button" bindtap="startExam">开始作答</button></view>
+    <view wx:if="{{modal === 'examIntro'}}" class="small-panel exam-intro"><view class="exam-emblem">末</view><view class="panel-kicker">FINAL EXAMINATION</view><view class="panel-title">{{examSemesterName}} · 期末考试</view><view class="exam-desc">{{isFinal ? '这是大学生涯的最后一场考试。' : '一学期的探索与选择，都将成为此刻的底气。'}}共 5 道情境题，日常学识与实践也会影响成绩。</view><view class="exam-rule"><text>答题正确</text><text class="exam-points">50 分</text><text>日常成长</text><text class="exam-points">50 分</text></view><button class="primary-button" bindtap="startExam">开始作答</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
 
-    <view wx:if="{{modal === 'exam'}}" class="small-panel exam-panel"><view class="exam-progress-head"><text>第 {{semester}} 学期期末考</text><text>{{examIndex + 1}} / 5</text></view><view class="exam-progress-track"><view style="width:{{(examIndex + 1) * 20}}%"></view></view><view class="exam-question">{{currentQuestion.question}}</view><view class="exam-options"><button wx:for="{{currentQuestion.options}}" wx:key="index" data-index="{{index}}" bindtap="answerExam"><text>{{item}}</text><text>›</text></button></view><view class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</view></view>
+    <view wx:if="{{modal === 'exam'}}" class="small-panel exam-panel"><view class="exam-progress-head"><text>第 {{semester}} 学期期末考</text><text>{{examIndex + 1}} / 5</text></view><view class="exam-progress-track"><view style="width:{{(examIndex + 1) * 20}}%"></view></view><view class="exam-question">{{currentQuestion.question}}</view><view class="exam-options"><button wx:for="{{currentQuestion.options}}" wx:key="index" data-index="{{index}}" bindtap="answerExam"><text>{{item}}</text><text>›</text></button></view><view class="exam-note">请凭直觉作答，大学里的经验会帮助你的成绩</view><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
 
-    <view wx:if="{{modal === 'semester'}}" class="small-panel"><view class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</view><view class="panel-kicker">SEMESTER COMPLETE</view><view class="panel-title">{{semesterResult.semesterName}} 结束</view><view class="score-ring"><text>{{semesterResult.score}}</text><text class="score-label">期末成绩</text></view><view class="exam-desc">假期里你好好休整了一番，精力大幅恢复。接下来是 {{nextSemesterName}}。</view><view class="exam-rule"><text>答对</text><text class="exam-points">{{semesterResult.correct}} / 5 题</text><text>已完成学期</text><text class="exam-points">{{semester}} / 8</text></view><button class="primary-button" bindtap="nextSemester">进入{{nextSemesterName}} →</button></view>
+    <view wx:if="{{modal === 'semester'}}" class="small-panel"><view class="exam-emblem" style="border-color:#7d9275;color:#5f7a5f">假</view><view class="panel-kicker">SEMESTER COMPLETE</view><view class="panel-title">{{semesterResult.semesterName}} 结束</view><view class="score-ring"><text>{{semesterResult.score}}</text><text class="score-label">期末成绩</text></view><view class="exam-desc">假期里你好好休整了一番，精力大幅恢复。接下来是 {{nextSemesterName}}。</view><view class="exam-rule"><text>答对</text><text class="exam-points">{{semesterResult.correct}} / 5 题</text><text>已完成学期</text><text class="exam-points">{{semester}} / 8</text></view><button class="primary-button" bindtap="nextSemester">进入{{nextSemesterName}} →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
 
-    <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view><view class="ending-text">{{ending.text}}</view><view class="ending-stats"><view wx:for="{{statsArray}}" wx:key="key"><text>{{item.name}}</text><text class="ending-value">{{item.value}}</text></view></view><view class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</view><button class="primary-button" bindtap="restart">开启另一种人生</button></view>
+    <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view><view class="ending-text">{{ending.text}}</view><view class="ending-stats"><view wx:for="{{statsArray}}" wx:key="key"><text>{{item.name}}</text><text class="ending-value">{{item.value}}</text></view></view><view class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</view><view class="ending-seed">本局种子码 <text>{{seedCode}}</text> · 把它给同学，可以复现同一段四年</view><view class="panel-link" bindtap="openLog">查看选择日志 ›</view><button class="primary-button" bindtap="restart">开启另一种人生</button></view>
+
+    <view wx:if="{{modal === 'log'}}" class="small-panel log-panel">
+      <view class="panel-close" bindtap="closeLog">×</view>
+      <view class="panel-kicker">CHOICE LOG</view>
+      <view class="panel-title">选择日志</view>
+      <view wx:if="{{logEntries.length === 0}}" class="log-empty">还没有做过任何选择，去校园里走走吧。</view>
+      <view wx:else class="log-list">
+        <view wx:for="{{logEntries}}" wx:key="id" class="log-entry">
+          <view class="log-meta"><text>{{item.semesterName}} · 第 {{item.week}} 周</text><text class="log-scene">{{item.sceneName}}</text></view>
+          <view class="log-quest">{{item.questTitle}}</view>
+          <view class="log-choice">{{item.choiceText}}</view>
+          <view class="log-effects">
+            <view wx:for="{{item.effects}}" wx:for-item="effect" wx:key="key" class="effect-item {{effect.value >= 0 ? 'positive' : 'negative'}}">{{effect.name}} {{effect.value >= 0 ? '+' : ''}}{{effect.value}}</view>
+            <text class="log-flag {{item.repeat ? 'repeat' : ''}}">{{item.repeatLabel}}</text>
+          </view>
+        </view>
+      </view>
+      <button class="primary-button" bindtap="closeLog">回到刚才的地方</button>
+    </view>
   </view>
 </view>
