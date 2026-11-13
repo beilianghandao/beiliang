@@ -3,7 +3,7 @@ window.CampusRequire = (() => {
 const modules = {};
 const cache = {};
 modules['content'] = function(module, exports, require) {
-const { EXTRA_QUESTS } = require('./expansion');
+const { EXTRA_QUESTS } = require('expansion');
 const CHARACTERS = [
   { id: 'lin', name: '林知夏', title: '清醒温柔的记录者', quote: '想把平凡的日子，过成自己的答案。', color: '#e98b78', hair: '#3d2926', skin: '#ffd8bc', hairStyle: 'long', pants: '#5b6b85', avatar: 'lin_avatar.png', stats: { knowledge: 46, fitness: 40, mood: 62, social: 54, practice: 45 }, trait: '共情倾听：对话中获得的人缘 +1' },
   { id: 'chen', name: '陈屿', title: '理性可靠的技术宅', quote: '世界很复杂，但问题总能被拆解。', color: '#6688bb', hair: '#252936', skin: '#f2c9a9', hairStyle: 'short', pants: '#3f4a5c', accessory: 'glasses', avatar: 'chen_avatar.png', stats: { knowledge: 60, fitness: 36, mood: 48, social: 36, practice: 56 }, trait: '逻辑拆解：学习事件获得的学识 +2' },
@@ -498,6 +498,532 @@ Object.entries(EXTRA_QUESTS).forEach(([sceneId, quests]) => {
 });
 
 module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES, statName };
+
+};
+modules['expansion'] = function(module, exports, require) {
+// 第一轮扩展：将每个场景从 2 个任务问答扩充到 6 个。
+const EXTRA_QUESTS = {
+  library: [
+    {
+      id: 'lib-3', title: '跨专业的一张书单',
+      text: '周予安正在准备一场跨学科分享，却对着社会学、设计和编程三堆书犯了难。“如果你只有两周，会怎么读？”他把选择权交给了你。',
+      choices: [
+        { text: '先找共同问题，再按主题筛选章节', hint: '学识 +7 · 实践 +4 · 精力 -10', effects: { knowledge: 7, practice: 4, energy: -10 }, reply: '你不再逐页苦读，而是让不同学科围绕同一个问题对话。分享那天，听众第一次发现这些领域竟能彼此解释。' },
+        { text: '邀请三个专业的同学各推荐一本', hint: '人缘 +7 · 学识 +4', effects: { social: 7, knowledge: 4 }, reply: '一张书单变成了十个人的思想接力。你收获的不只是书，还有一群可以持续请教的伙伴。' }
+      ]
+    },
+    {
+      id: 'lib-4', title: '被遗忘的读书笔记',
+      text: '你在还书箱里发现一本写满批注的笔记，扉页只有一个模糊的姓氏。管理员说，失主可能正为下周的答辩焦头烂额。',
+      choices: [
+        { text: '根据批注里的线索寻找失主', hint: '实践 +6 · 人缘 +5 · 精力 -8', effects: { practice: 6, social: 5, energy: -8 }, reply: '你沿着课程号和借阅记录找到了失主。对方接过笔记时如释重负，坚持请你喝了一杯热咖啡。' },
+        { text: '先整理公开无隐私的阅读方法再归还', hint: '学识 +6 · 心态 +4', effects: { knowledge: 6, mood: 4 }, reply: '你把那些巧妙的阅读方法整理成匿名卡片，留在公共书架。一份陌生人的努力，因此照亮了更多人。' }
+      ]
+    },
+    {
+      id: 'lib-5', title: '二十四小时自习室的灯',
+      text: '考试周将至，自习室通宵开放。有人打算连续熬三晚，有人趴在桌上焦虑得看不进一个字。你也在安排自己的复习节奏。',
+      choices: [
+        { text: '制定睡眠优先的间隔复习计划', hint: '学识 +6 · 心态 +6 · 精力 +4', effects: { knowledge: 6, mood: 6, energy: 4 }, reply: '你用短周期回忆代替漫长硬撑。走出自习室时，你依然清醒，也终于把“休息”写进了努力的一部分。' },
+        { text: '组织互助小组，轮流讲解薄弱章节', hint: '人缘 +6 · 学识 +5 · 精力 -8', effects: { social: 6, knowledge: 5, energy: -8 }, reply: '每个人讲懂一个问题，也听懂了五个问题。凌晨的灯依旧亮着，但焦虑已经被彼此的解释声冲淡。' }
+      ]
+    },
+    {
+      id: 'lib-6', title: '毕业书单上的最后一本',
+      text: '图书馆发起“给未来留一本书”活动。你只能推荐一本陪伴过自己的书，并写下一段会留给后来者的话。',
+      choices: [
+        { text: '推荐改变过自己的专业经典', hint: '学识 +8 · 心态 +3', effects: { knowledge: 8, mood: 3 }, reply: '你写下第一次读懂它时的震动。多年后，也许某个迷茫的人会因为这段话，重新相信知识的力量。' },
+        { text: '推荐陪伴低谷时期的文学作品', hint: '心态 +8 · 人缘 +3', effects: { mood: 8, social: 3 }, reply: '你没有讲大道理，只诚实写下它如何陪自己走过低谷。文字落在卡片上，也成为给陌生人的一个拥抱。' }
+      ]
+    }
+  ],
+  classroom: [
+    {
+      id: 'cls-3', title: '一张没有标准答案的试卷',
+      text: '许老师发下一份特殊作业：为学校的一处真实问题提出改进方案。没有模板，没有唯一答案，下周公开答辩。',
+      choices: [
+        { text: '先访谈使用者，再确定问题定义', hint: '实践 +7 · 人缘 +4 · 精力 -10', effects: { practice: 7, social: 4, energy: -10 }, reply: '十几段访谈推翻了你们最初的设想，却让真正的问题浮出水面。答辩时，每一句判断都有真实声音作支撑。' },
+        { text: '查阅案例，用数据建立分析模型', hint: '学识 +8 · 实践 +3 · 精力 -10', effects: { knowledge: 8, practice: 3, energy: -10 }, reply: '你把散乱的现象变成清晰的图表。老师提醒你别迷信模型，而你学会了让证据与常识彼此校验。' }
+      ]
+    },
+    {
+      id: 'cls-4', title: '和不同意见坐在一起',
+      text: '课堂辩论中，你和同桌的观点几乎完全相反。气氛渐渐紧张，许老师却宣布：下节课，你们必须交换立场。',
+      choices: [
+        { text: '认真为对方立场寻找证据', hint: '学识 +6 · 心态 +6', effects: { knowledge: 6, mood: 6 }, reply: '当你能流畅说出“对手”的理由，争论忽然不再是为了赢。你们仍保留观点，却真正理解了彼此。' },
+        { text: '课后约同桌一起还原分歧来源', hint: '人缘 +7 · 实践 +4', effects: { social: 7, practice: 4 }, reply: '你们发现分歧并非来自态度，而是不同的经历。那次谈话之后，你们成了最敢互相质疑的学习搭档。' }
+      ]
+    },
+    {
+      id: 'cls-5', title: '临时空出来的一节课',
+      text: '外地嘉宾临时缺席，整节课空了出来。许老师问全班：“如果交给你们，这四十五分钟最值得做什么？”',
+      choices: [
+        { text: '组织每人三分钟的知识快闪分享', hint: '人缘 +6 · 学识 +4 · 心态 +3', effects: { social: 6, knowledge: 4, mood: 3 }, reply: '有人讲星座，有人讲桥梁，有人讲家乡方言。你第一次发现，每位普通同学都藏着一座小小的博物馆。' },
+        { text: '带大家把课程知识做成思维导图', hint: '学识 +7 · 实践 +5 · 精力 -6', effects: { knowledge: 7, practice: 5, energy: -6 }, reply: '零散的概念被连成一张网。下课铃响时，没有人急着离开，因为大家终于看见了这门课的全貌。' }
+      ]
+    },
+    {
+      id: 'cls-6', title: '最后一次课堂提问',
+      text: '课程结束前，许老师允许每个人问一个“一直没敢问的问题”。教室很安静，你想起那个困扰自己很久的选择。',
+      choices: [
+        { text: '追问如何面对长期努力后的失败', hint: '心态 +8 · 学识 +3', effects: { mood: 8, knowledge: 3 }, reply: '老师没有给你成功学答案，只分享了自己转行与重来。你第一次明白，失败也可以是一段严肃而宝贵的人生经验。' },
+        { text: '请教怎样把兴趣变成长期能力', hint: '实践 +6 · 学识 +5', effects: { practice: 6, knowledge: 5 }, reply: '你们谈到作品、反馈和长期主义。下课后，你把答案拆成了未来三个月可以真正执行的计划。' }
+      ]
+    }
+  ],
+  lab: [
+    {
+      id: 'lab-3', title: '用户说“不好用”',
+      text: '你们引以为傲的校园助手，在试用中只得到一句“太麻烦”。唐果有些不服气，你却注意到测试者反复停在同一个页面。',
+      choices: [
+        { text: '记录完整操作路径，重新设计流程', hint: '实践 +8 · 学识 +3 · 精力 -12', effects: { practice: 8, knowledge: 3, energy: -12 }, reply: '你们删去一半按钮，把三步合成一步。新版试用时，测试者没有称赞，却自然地完成了任务——这是最好的答案。' },
+        { text: '邀请不同年级同学参加焦点访谈', hint: '人缘 +6 · 实践 +5', effects: { social: 6, practice: 5 }, reply: '新生、毕业生和留学生提出了截然不同的需求。你们终于明白，所谓用户，从来不是抽象的一个词。' }
+      ]
+    },
+    {
+      id: 'lab-4', title: '比赛之外的另一种胜利',
+      text: '作品止步校赛复赛，但一家社区服务站看中了你们的原型，希望把它用于真实志愿服务。团队需要决定是否继续。',
+      choices: [
+        { text: '转向真实场景，做一个月驻点测试', hint: '实践 +9 · 人缘 +4 · 精力 -14', effects: { practice: 9, social: 4, energy: -14 }, reply: '没有奖杯，却有越来越多人每天使用它。你在服务记录里看见了比名次更持久的价值。' },
+        { text: '复盘技术路线，为下一届比赛蓄力', hint: '学识 +7 · 心态 +5', effects: { knowledge: 7, mood: 5 }, reply: '你们把失败拆成一页页可改进的清单。离场不是结束，而是下一次出发时更清醒的起点。' }
+      ]
+    },
+    {
+      id: 'lab-5', title: '午夜实验室的安全警报',
+      text: '深夜测试时，设备突然发出焦味并触发警报。距离演示只剩十二小时，所有人都在等你决定下一步。',
+      choices: [
+        { text: '立即断电上报，按安全流程排查', hint: '实践 +7 · 心态 +5 · 精力 -6', effects: { practice: 7, mood: 5, energy: -6 }, reply: '你们保住了设备，也守住了底线。演示虽然简化，却没人再质疑你的判断——可靠比冒险更值得信任。' },
+        { text: '启用备用模块并联系老师远程协助', hint: '学识 +5 · 人缘 +5 · 实践 +4', effects: { knowledge: 5, social: 5, practice: 4 }, reply: '你们没有独自逞强，而是让经验与预案发挥作用。天亮时，备用系统稳定运行，团队也学会了敬畏流程。' }
+      ]
+    },
+    {
+      id: 'lab-6', title: '把第一次留给后来人',
+      text: '你即将从创客空间毕业。唐果提议，把那些踩过的坑留给下一届，而不是只展示最成功的作品。',
+      choices: [
+        { text: '制作失败案例库和可复现实验教程', hint: '学识 +6 · 实践 +7 · 精力 -8', effects: { knowledge: 6, practice: 7, energy: -8 }, reply: '每一份报错截图都配上定位过程。后来的人会少走一些弯路，也会更勇敢地面对自己的第一次失败。' },
+        { text: '带新成员完成一次完整的小型项目', hint: '人缘 +7 · 实践 +5 · 心态 +3', effects: { social: 7, practice: 5, mood: 3 }, reply: '你忍住替他们动手的冲动，只在关键处提问。新成员独立完成作品时，你看见了传承真正发生的样子。' }
+      ]
+    }
+  ],
+  canteen: [
+    {
+      id: 'can-3', title: '一份被送错的晚餐',
+      text: '晚高峰里，你拿到的餐并不是自己点的。窗口前排着长队，后厨忙得团团转，而那份餐的原主人正四处寻找。',
+      choices: [
+        { text: '主动核对订单，协助窗口理顺出餐', hint: '实践 +6 · 人缘 +5 · 精力 -6', effects: { practice: 6, social: 5, energy: -6 }, reply: '几张便签和一句清晰报号让队伍重新流动。阿姨终于能抬头笑一笑，你也吃到了那份迟来的晚餐。' },
+        { text: '找到原主人，商量交换并平分两份菜', hint: '人缘 +7 · 心态 +4', effects: { social: 7, mood: 4 }, reply: '一场小混乱变成了拼桌晚餐。你们尝到彼此推荐的菜，也意外收获了一个新朋友。' }
+      ]
+    },
+    {
+      id: 'can-4', title: '光盘行动的七天实验',
+      text: '食堂公告栏贴出“减少剩餐”的倡议，但响应者寥寥。阿岚问你，能不能让这件小事变得不那么像说教。',
+      choices: [
+        { text: '记录浪费数据，设计小份菜建议', hint: '学识 +5 · 实践 +6 · 精力 -8', effects: { knowledge: 5, practice: 6, energy: -8 }, reply: '你们用真实数据说服窗口推出半份组合。改变不是来自口号，而是来自一个更方便的选择。' },
+        { text: '发起宿舍打卡和创意剩菜改造分享', hint: '人缘 +7 · 心态 +4 · 实践 +3', effects: { social: 7, mood: 4, practice: 3 }, reply: '七天里，越来越多餐盘干净地回到回收处。善意被做成有趣的活动，就更容易成为日常。' }
+      ]
+    },
+    {
+      id: 'can-5', title: '家乡味道投票日',
+      text: '食堂准备推出“家乡味道周”，每个窗口只能留下一道菜。阿岚希望你帮忙，让来自不同地方的人都被认真听见。',
+      choices: [
+        { text: '组织试吃评审，兼顾口味与制作成本', hint: '实践 +7 · 人缘 +4', effects: { practice: 7, social: 4 }, reply: '评分表上既有味道，也有价格和出餐效率。最终菜单不完美，却让每个人都知道自己的选择被尊重。' },
+        { text: '收集菜品背后的家乡故事做成桌卡', hint: '心态 +6 · 人缘 +6', effects: { mood: 6, social: 6 }, reply: '一道普通面食背后，是某个人清晨出发的车站。吃饭的人放慢了速度，食堂也多了理解彼此的温度。' }
+      ]
+    },
+    {
+      id: 'can-6', title: '深夜自习后的热汤',
+      text: '寒潮突然到来，晚归同学在食堂门口瑟瑟发抖。后厨还剩一些食材，阿姨想煮一锅热汤，却缺人帮忙通知和分发。',
+      choices: [
+        { text: '帮忙掌勺分装，守住食品卫生流程', hint: '体魄 +5 · 实践 +6 · 精力 -10', effects: { fitness: 5, practice: 6, energy: -10 }, reply: '你洗菜、分装、擦桌，忙到额头冒汗。热汤送到每个人手里时，寒夜似乎也没那么冷了。' },
+        { text: '联系各寝室长，有序通知需要的人', hint: '人缘 +7 · 实践 +4 · 心态 +2', effects: { social: 7, practice: 4, mood: 2 }, reply: '没有拥挤，也没有遗漏。最后一碗汤留给忙碌一晚的你，那是这个冬夜最踏实的味道。' }
+      ]
+    }
+  ],
+  dorm: [
+    {
+      id: 'dor-3', title: '熄灯后的不同作息',
+      text: '有人要早起晨跑，有人习惯深夜写代码，寝室里的矛盾终于因为一盏台灯爆发。四个人都等着你表态。',
+      choices: [
+        { text: '组织寝室会议，约定安静时段和灯光规则', hint: '人缘 +7 · 实践 +5', effects: { social: 7, practice: 5 }, reply: '你们没有要求谁彻底改变，而是为彼此留出边界。那张共同写下的寝室公约，让生活重新变得轻松。' },
+        { text: '先分别倾听，再帮大家找到折中方案', hint: '心态 +6 · 人缘 +6', effects: { mood: 6, social: 6 }, reply: '争吵背后其实是疲惫和压力。被认真听见以后，每个人都愿意退让半步，寝室终于有了真正的安静。' }
+      ]
+    },
+    {
+      id: 'dor-4', title: '阳台上的小小花园',
+      text: '宋小满抱回几盆快枯萎的绿植，提议把空荡荡的阳台改造成寝室花园，可期末周也近在眼前。',
+      choices: [
+        { text: '查阅养护方法，制作轮值浇水表', hint: '学识 +4 · 实践 +6 · 心态 +3', effects: { knowledge: 4, practice: 6, mood: 3 }, reply: '你们给每盆植物写下名字和习性。新叶冒出来的那天，寝室里像多了一件值得共同期待的小事。' },
+        { text: '一起打扫阳台，办一场春日茶话会', hint: '体魄 +4 · 人缘 +5 · 心态 +4', effects: { fitness: 4, social: 5, mood: 4 }, reply: '灰尘被清走，旧椅子擦洗干净。你们在阳光下喝茶聊天，忙碌生活里终于有了一处可以呼吸的角落。' }
+      ]
+    },
+    {
+      id: 'dor-5', title: '旧物箱里的四年',
+      text: '大扫除时，你们翻出军训帽、第一张课表和没送出去的明信片。东西越来越多，寝室必须决定哪些留下。',
+      choices: [
+        { text: '分类捐赠回收，只保留真正使用的物品', hint: '实践 +7 · 体魄 +3 · 精力 -8', effects: { practice: 7, fitness: 3, energy: -8 }, reply: '旧书去了有需要的人手里，闲置电器重新工作。空间变得清爽，你也学会与拥有过的日子好好告别。' },
+        { text: '制作寝室纪念册，为每件旧物写故事', hint: '心态 +8 · 人缘 +4', effects: { mood: 8, social: 4 }, reply: '物品仍然会被清理，故事却留了下来。翻到最后那页，你们给未来的寝室成员写下了一封欢迎信。' }
+      ]
+    },
+    {
+      id: 'dor-6', title: '毕业前夜的一条未读消息',
+      text: '毕业前夜，曾经闹过矛盾的室友在群里发来一句“睡了吗”。四年的回忆涌上来，你决定如何回应。',
+      choices: [
+        { text: '认真聊开当年的误会，也向彼此道别', hint: '心态 +8 · 人缘 +6', effects: { mood: 8, social: 6 }, reply: '没有谁被逼着原谅，但你们都终于说出了当年没说出口的话。天亮时，告别不再带着沉重的省略号。' },
+        { text: '约大家最后吃一次早餐，不谈遗憾', hint: '人缘 +7 · 心态 +5', effects: { social: 7, mood: 5 }, reply: '豆浆、包子和熟悉的笑闹声，替你们完成了和解。不是所有关系都需要总结，有些只需要好好告别。' }
+      ]
+    }
+  ],
+  gym: [
+    {
+      id: 'gym-3', title: '体测前的十四天',
+      text: '体测只剩两周，你的耐力成绩仍不理想。陆教练提醒：“突击不是拼命，是学会安排恢复。”',
+      choices: [
+        { text: '按心率制定间歇训练与睡眠计划', hint: '体魄 +8 · 学识 +3 · 精力 -10', effects: { fitness: 8, knowledge: 3, energy: -10 }, reply: '你没有每天跑到力竭，却在稳定训练里看见了进步。体测那天，你第一次相信科学比硬撑更有力量。' },
+        { text: '和同学组成互测互助训练营', hint: '体魄 +5 · 人缘 +6 · 精力 -8', effects: { fitness: 5, social: 6, energy: -8 }, reply: '有人计时，有人陪跑，有人提醒拉伸。成绩提高之外，你们还收获了一群会在操场等你的伙伴。' }
+      ]
+    },
+    {
+      id: 'gym-4', title: '雨中的球场裁判',
+      text: '友谊赛临时缺裁判，双方因为一次判罚争得面红耳赤。陆教练把记录表递给你：“敢不敢试试？”',
+      choices: [
+        { text: '先统一规则，再公正完成剩余比赛', hint: '实践 +6 · 心态 +5 · 人缘 +3', effects: { practice: 6, mood: 5, social: 3 }, reply: '你承认了一次误判，也坚持了一次关键判罚。比赛结束时，双方都来和你握手——公正不是从不出错，而是始终一致。' },
+        { text: '邀请双方队长共同复核争议回合', hint: '人缘 +7 · 实践 +4', effects: { social: 7, practice: 4 }, reply: '你们把情绪变成可以讨论的事实。最后比分已没人太在意，因为比赛重新回到了尊重与快乐。' }
+      ]
+    },
+    {
+      id: 'gym-5', title: '不为比赛的运动社团',
+      text: '很多同学想运动，却因为“太差”“坚持不了”不敢加入跑团。陆教练想做一个完全没有成绩压力的新项目。',
+      choices: [
+        { text: '设计低门槛的分级课程与恢复指导', hint: '体魄 +6 · 实践 +5 · 学识 +3', effects: { fitness: 6, practice: 5, knowledge: 3 }, reply: '走路组、慢跑组和体能组同时出发。没有人被落下，运动第一次对每个人都露出了欢迎的表情。' },
+        { text: '发起音乐夜走和好友结伴计划', hint: '人缘 +6 · 心态 +5 · 体魄 +3', effects: { social: 6, mood: 5, fitness: 3 }, reply: '歌单、笑声和晚风让操场热闹起来。有人不是为了变强而来，却在这里慢慢变成了更健康的自己。' }
+      ]
+    },
+    {
+      id: 'gym-6', title: '最后一次冲线之后',
+      text: '毕业跑的终点就在眼前。陆教练没有催你加速，只问：“四年里，身体教会你的最重要的事是什么？”',
+      choices: [
+        { text: '全力冲线，感谢那个没有放弃的自己', hint: '体魄 +9 · 心态 +4 · 精力 -14', effects: { fitness: 9, mood: 4, energy: -14 }, reply: '你带着四年的汗水冲过终点。成绩不再重要，重要的是你已经知道如何一次次从疲惫里站起来。' },
+        { text: '放慢脚步，和一路相伴的人共同抵达', hint: '人缘 +7 · 心态 +6 · 体魄 +3', effects: { social: 7, mood: 6, fitness: 3 }, reply: '你们并肩越过终点，没有一个人被落下。那张气喘吁吁的合影，比任何奖牌都更像青春。' }
+      ]
+    }
+  ],
+  club: [
+    {
+      id: 'clu-3', title: '招新摊位前无人问津',
+      text: '社团招新开始半天，摊位前仍冷冷清清。顾星野准备加大音响音量，你却觉得问题可能不在声音大小。',
+      choices: [
+        { text: '设计一分钟互动体验，让路人先参与', hint: '实践 +7 · 人缘 +5 · 精力 -8', effects: { practice: 7, social: 5, energy: -8 }, reply: '路过的人开始停下尝试，笑声比音响更有效。你们不再急着介绍自己，而是先让每个人感受社团的快乐。' },
+        { text: '访谈路人，重新写一句清楚的招新介绍', hint: '人缘 +6 · 学识 +4 · 实践 +3', effects: { social: 6, knowledge: 4, practice: 3 }, reply: '“零基础也能完成一次演出”取代了空泛口号。真正需要的人，终于看懂了这里为什么值得加入。' }
+      ]
+    },
+    {
+      id: 'clu-4', title: '预算只有原来的一半',
+      text: '年度演出预算突然被削减一半。服装、灯光和场地只能保留两项，团队争执不下，演出又不能取消。',
+      choices: [
+        { text: '重排预算，优先保障安全与核心体验', hint: '实践 +8 · 学识 +4 · 精力 -8', effects: { practice: 8, knowledge: 4, energy: -8 }, reply: '你们删掉炫技环节，把有限预算花在真正影响观众的地方。演出不奢华，却完整、真诚而安全。' },
+        { text: '发动校内外合作，用共创置换资源', hint: '人缘 +8 · 实践 +4 · 心态 +2', effects: { social: 8, practice: 4, mood: 2 }, reply: '摄影社记录演出，设计社制作海报，校友提供旧灯具。资源没有凭空增加，连接却让可能变多了。' }
+      ]
+    },
+    {
+      id: 'clu-5', title: '聚光灯之外的成员',
+      text: '演出结束后，大家围着主演庆祝，一位负责道具的同学却悄悄提前离开。你想起他连续三周都没有缺席。',
+      choices: [
+        { text: '在复盘中让每位幕后成员都被具体感谢', hint: '人缘 +8 · 心态 +5', effects: { social: 8, mood: 5 }, reply: '你说出每个人做过的小事，而不是一句笼统的“大家辛苦”。那位同学抬起头，眼里重新有了光。' },
+        { text: '建立轮岗机制，让成员体验不同位置', hint: '实践 +7 · 人缘 +4', effects: { practice: 7, social: 4 }, reply: '演员尝试搬道具，灯光师走上舞台。理解不再停留在口头，团队也开始真正看见彼此。' }
+      ]
+    },
+    {
+      id: 'clu-6', title: '毕业后还会继续的作品',
+      text: '社团想把四年积累做成一个能持续更新的公共作品，而不是毕业即散场。顾星野邀请你提出最后一份方案。',
+      choices: [
+        { text: '建立开放素材库和标准创作手册', hint: '学识 +5 · 实践 +7 · 精力 -8', effects: { knowledge: 5, practice: 7, energy: -8 }, reply: '海报、乐谱、流程和复盘都被整理归档。即使熟悉的人离开，新的创作者也能接着把故事写下去。' },
+        { text: '发起校友与在校生共同创作计划', hint: '人缘 +8 · 心态 +5 · 实践 +3', effects: { social: 8, mood: 5, practice: 3 }, reply: '不同年份的人在同一份作品里留下笔迹。毕业不再是退出群聊，而成为另一种继续参与的方式。' }
+      ]
+    }
+  ],
+  lake: [
+    {
+      id: 'lake-3', title: '湖边捡到的录音笔',
+      text: '你在长椅下发现一支录音笔，里面是一位毕业生未完成的校园声音采集：雨声、铃声、食堂喧闹，还有一段欲言又止的自白。',
+      choices: [
+        { text: '设法联系失主，把未完成的故事还给他', hint: '人缘 +7 · 实践 +4', effects: { social: 7, practice: 4 }, reply: '失主已经远在他乡。听见旧日校园的声音，他决定重新完成作品，而你成了第一位认真倾听的人。' },
+        { text: '征得同意后补录四季声音，完成作品', hint: '实践 +7 · 心态 +5 · 精力 -8', effects: { practice: 7, mood: 5, energy: -8 }, reply: '你在不同季节回到湖边。作品完成时，陌生人的大学与你的大学，在声音里温柔地接上了轨。' }
+      ]
+    },
+    {
+      id: 'lake-4', title: '一次没有手机的日落',
+      text: '最近你总被消息牵着走。湖边告示牌上写着一项挑战：把手机寄存一小时，只带走一张空白卡片。',
+      choices: [
+        { text: '安静看完日落，写下身体与情绪的感受', hint: '心态 +10 · 精力 +8', effects: { mood: 10, energy: 8 }, reply: '没有拍照，也没有错过什么。你重新听见风声和自己的呼吸，焦虑在一小时里慢慢松开了手。' },
+        { text: '邀请一位朋友同行，约定互不查看手机', hint: '人缘 +7 · 心态 +6 · 精力 +5', effects: { social: 7, mood: 6, energy: 5 }, reply: '你们聊了很多平时被表情包带过的话题。日落结束时，彼此都比来时更了解对方一点。' }
+      ]
+    },
+    {
+      id: 'lake-5', title: '校园里的无障碍小路',
+      text: '一场雨后，你注意到湖边施工围挡让轮椅通行变得困难。同行者说“绕一点就好”，你却停下了脚步。',
+      choices: [
+        { text: '实地记录路线，整理问题提交校方', hint: '实践 +8 · 学识 +4 · 精力 -8', effects: { practice: 8, knowledge: 4, energy: -8 }, reply: '你拍下高差、标出绕行距离，并持续跟进。新通道开放那天，你真正理解便利应由所有人共享。' },
+        { text: '邀请不同需求的同学一起重走校园', hint: '人缘 +7 · 实践 +5 · 心态 +3', effects: { social: 7, practice: 5, mood: 3 }, reply: '熟悉的校园在不同视角下变得陌生。你们共同绘制的友好地图，让后来的人少走许多不必要的弯路。' }
+      ]
+    },
+    {
+      id: 'lake-6', title: '留给十年后的一道题',
+      text: '湖边新建了一面毕业留言墙。别人写下职位、城市和薪资目标，你却迟迟不知道该留下什么。',
+      choices: [
+        { text: '写下想成为怎样的人，而非拥有什么', hint: '心态 +9 · 学识 +3', effects: { mood: 9, knowledge: 3 }, reply: '你写下诚实、好奇和勇敢。它们不是可量化的目标，却会在未来每一次选择里提醒你为何出发。' },
+        { text: '写下希望仍与哪些人保持真诚联系', hint: '人缘 +8 · 心态 +6', effects: { social: 8, mood: 6 }, reply: '你写下几个名字，也写下“记得主动”。未来也许遥远，但珍惜眼前人是现在就能做到的答案。' }
+      ]
+    }
+  ]
+};
+
+// 第二轮扩展：将每个场景从 6 个任务问答扩充到 8 个。
+EXTRA_QUESTS.library.push(
+  {
+    id: 'lib-7', title: '无人认领的研究笔记',
+    text: '自习桌下有一本写满公式的笔记，页边贴满颜色不同的索引签。周予安认出那是一位转专业学姐留下的，但她已离校两周。',
+    choices: [
+      { text: '整理核心思路，做成可公开的学习导图', hint: '学识 +7 · 实践 +5 · 精力 -8', effects: { knowledge: 7, practice: 5, energy: -8 }, reply: '你把散落的推导整理成一张清晰的地图。后来它成为低年级最受欢迎的学习资料，扉页上仍保留着学姐的署名。' },
+      { text: '联系学姐并征得同意后再归档分享', hint: '人缘 +7 · 学识 +4', effects: { social: 7, knowledge: 4 }, reply: '学姐收到消息后很惊讶，也很开心。一次简单交接，让知识和善意都没有被遗忘。' }
+    ]
+  },
+  {
+    id: 'lib-8', title: '闭馆前最后一次巡视',
+    text: '毕业前夜，你被邀请作为志愿者完成最后一次闭馆巡视。走廊比平日安静，每张桌子都像盛着一段没有说出口的青春。',
+    choices: [
+      { text: '坐在常坐的位置，认真回顾四年变化', hint: '心态 +9 · 学识 +3', effects: { mood: 9, knowledge: 3 }, reply: '闭馆音乐响起时，你忽然发现自己已经不再害怕未知。图书馆留给你的最后一课，是温柔地走向下一章。' },
+      { text: '写一张感谢卡留给图书馆和后来的人', hint: '心态 +8 · 人缘 +4', effects: { mood: 8, social: 4 }, reply: '卡片夹在公共书架最显眼的位置。明年秋天，某个新生也许会因那句“慢慢来，来得及”少一分慌张。' }
+    ]
+  }
+);
+EXTRA_QUESTS.classroom.push(
+  {
+    id: 'cls-7', title: '互相批改的一门课',
+    text: '许老师宣布期末作业由同学互评。你抽到一份观点完全相反的论文，而对方也恰好读到了你的作品。',
+    choices: [
+      { text: '先指出最有价值的部分，再提出具体疑问', hint: '学识 +6 · 心态 +6', effects: { knowledge: 6, mood: 6 }, reply: '你学会了让批评从理解开始。对方也在评语里认真回应你的逻辑，一篇作业变成了双向成长。' },
+      { text: '约作者当面讨论，交换彼此证据', hint: '人缘 +7 · 学识 +4', effects: { social: 7, knowledge: 4 }, reply: '争论持续了一小时，却没有一句指责。走出教室时，你们都拥有了比原稿更完整的答案。' }
+    ]
+  },
+  {
+    id: 'cls-8', title: '一节由学生讲的课',
+    text: '课程最后一天，许老师把讲台让给你们：“今天每人只讲一件自己真正学会了的事。”名单最后一个是你的名字。',
+    choices: [
+      { text: '分享学会提问比找到答案更重要', hint: '学识 +6 · 心态 +7', effects: { knowledge: 6, mood: 7 }, reply: '你说起那些曾让你困惑的问题，以及它们如何改变了你。许老师在最后一排笑着点头。' },
+      { text: '用三分钟复盘一次失败的小组项目', hint: '实践 +7 · 心态 +5', effects: { practice: 7, mood: 5 }, reply: '你第一次把失败讲得平静而具体。教室里安静下来，你知道这堂课也会成为别人的参照。' }
+    ]
+  }
+);
+EXTRA_QUESTS.lab.push(
+  {
+    id: 'lab-7', title: '效率之外的伦理边界',
+    text: '新功能可以显著提高效率，但可能让少数用户承担额外风险。团队意见分裂，距离演示只剩一天，唐果把最终选择权交给了你。',
+    choices: [
+      { text: '坚持完善安全策略，哪怕功能缩减', hint: '实践 +7 · 学识 +4 · 心态 +4', effects: { practice: 7, knowledge: 4, mood: 4 }, reply: '你们删掉了最有噱头、却风险最大的部分。演示没有最惊艳，却让评委记住了“克制而可靠”这个词。' },
+      { text: '组织伦理评审，寻找兼顾价值的折中方案', hint: '人缘 +6 · 学识 +5 · 实践 +4', effects: { social: 6, knowledge: 5, practice: 4 }, reply: '不同观点被放进同一个框架里讨论。最终方案并不完美，却让每个受影响的人都得到了认真考虑。' }
+    ]
+  },
+  {
+    id: 'lab-8', title: '演示日前的最后一块拼图',
+    text: '校园创新展示开始前两小时，样机的交互界面突然崩溃。团队连续调试无果，观众已经开始入场。',
+    choices: [
+      { text: '启用离线演示模式，保证核心功能展示', hint: '实践 +8 · 心态 +4 · 精力 -8', effects: { practice: 8, mood: 4, energy: -8 }, reply: '你放弃了花哨效果，把最核心的价值清楚呈现出来。有人问起故障，你坦然说明，反而赢得更多信任。' },
+      { text: '分工排查底层依赖，留人准备口头讲解', hint: '学识 +6 · 人缘 +5 · 实践 +4', effects: { knowledge: 6, social: 5, practice: 4 }, reply: '界面在开场前十分钟恢复，讲解也已打磨完整。那一刻，你第一次感受到团队预案的价值。' }
+    ]
+  }
+);
+EXTRA_QUESTS.canteen.push(
+  {
+    id: 'can-7', title: '深夜的共享厨房',
+    text: '考试周深夜，食堂开放了一间共享厨房，让留校同学简单做饭。有人留下食材，有人留下说明书，也有人只留了一张“谢谢”便签。',
+    choices: [
+      { text: '制定清洁轮值和食材补充规则', hint: '实践 +7 · 人缘 +5 · 精力 -6', effects: { practice: 7, social: 5, energy: -6 }, reply: '小小的厨房运转得井井有条。热汤和规则一样，都是寒冬里最踏实的安慰。' },
+      { text: '教大家做一道自己的家乡菜', hint: '人缘 +7 · 心态 +5 · 实践 +3', effects: { social: 7, mood: 5, practice: 3 }, reply: '有人帮你切菜，有人记下配方，也有人吃到想家。厨房里的香气，让考试周不再只有压力。' }
+    ]
+  },
+  {
+    id: 'can-8', title: '突击检查前的十分钟',
+    text: '后厨突然接到临时食品安全检查。一位兼职同学紧张得手足无措，存储标签和记录表都还没整理完。',
+    choices: [
+      { text: '按流程补全记录，并主动说明真实情况', hint: '实践 +8 · 心态 +4', effects: { practice: 8, mood: 4 }, reply: '检查员没有为难你们，反而表扬记录完整。真实有时比临时粉饰更可靠。' },
+      { text: '分工整理样品、标签和留档，稳定现场秩序', hint: '体魄 +4 · 实践 +7 · 精力 -8', effects: { fitness: 4, practice: 7, energy: -8 }, reply: '十分钟里，你们把所有散落事项理顺。阿岚笑着说，原来食堂的后台也像一次团队协作实验。' }
+    ]
+  }
+);
+EXTRA_QUESTS.dorm.push(
+  {
+    id: 'dor-7', title: '停电后的寝室夜谈',
+    text: '暴雨导致整栋楼突然停电。手机电量所剩无几，你们点上应急灯，四个人第一次放下屏幕，真正聊起了生活。',
+    choices: [
+      { text: '组织一场不插电的寝室故事会', hint: '心态 +9 · 人缘 +5', effects: { mood: 9, social: 5 }, reply: '从童年糗事聊到未来恐惧，笑声和烛光一起摇晃。电力恢复后，你们反而有点舍不得结束。' },
+      { text: '检查楼道并帮邻居传递物资', hint: '体魄 +5 · 人缘 +6 · 实践 +3', effects: { fitness: 5, social: 6, practice: 3 }, reply: '你拎着应急灯跑上跑下，把电池和手电分给需要的寝室。那晚整层楼都记住了 412 的敲门声。' }
+    ]
+  },
+  {
+    id: 'dor-8', title: '最后一张值日表',
+    text: '毕业前，你们重新排了一张值日表，负责把这间住了四年的寝室整理到可以交接的状态。每个人都不由得慢了下来。',
+    choices: [
+      { text: '认真修补墙面、整理物品并完成交接', hint: '实践 +8 · 心态 +5 · 精力 -8', effects: { practice: 8, mood: 5, energy: -8 }, reply: '你们把修好的台灯、补充的挂钩和一张欢迎便签留给下一届。离开前，你回头看了一眼，像与四年郑重告别。' },
+      { text: '给未来的住客留下一份生活指南', hint: '人缘 +7 · 学识 +4 · 心态 +3', effects: { social: 7, knowledge: 4, mood: 3 }, reply: '指南上写着水电位置、采光时间和附近好吃的小店。素未谋面的人，也会因这间屋子产生连接。' }
+    ]
+  }
+);
+EXTRA_QUESTS.gym.push(
+  {
+    id: 'gym-7', title: '泳道尽头的一步',
+    text: '你一直想克服怕水，却总在泳池边停下。陆教练把浮板递给你：“今天不追求会游，只追求比昨天多走一步。”',
+    choices: [
+      { text: '从浅水区开始，按教练步骤慢慢练习', hint: '体魄 +8 · 心态 +7 · 精力 -10', effects: { fitness: 8, mood: 7, energy: -10 }, reply: '你终于松开池边，让身体稳稳浮起来。水面仍在晃动，但你已经不再被恐惧牵着走。' },
+      { text: '请会游泳的同学陪伴并互相记录进步', hint: '人缘 +7 · 体魄 +5 · 心态 +4', effects: { social: 7, fitness: 5, mood: 4 }, reply: '第一次独立换气成功时，岸上的欢呼比任何成绩都响亮。原来勇敢不一定要独自完成。' }
+    ]
+  },
+  {
+    id: 'gym-9', title: '一场没有观众的友谊赛',
+    text: '原定观众因暴雨取消，校际交流赛仍要照常进行。有人觉得失去了意义，你却看见队友们仍在认真热身。',
+    choices: [
+      { text: '照常上场，把比赛当作最好的训练', hint: '体魄 +8 · 心态 +6 · 精力 -12', effects: { fitness: 8, mood: 6, energy: -12 }, reply: '空荡的看台没有削弱任何一次冲刺。比赛结束后，对手主动来约下一场——热爱本身已经足够。' },
+      { text: '改成混合队训练赛，邀请双方共同切磋', hint: '人缘 +8 · 体魄 +5 · 实践 +3', effects: { social: 8, fitness: 5, practice: 3 }, reply: '红蓝两队被重新打乱，哨声与笑声几乎同样多。那天没有赢家，却每个人都赢到了新的朋友。' }
+    ]
+  }
+);
+EXTRA_QUESTS.club.push(
+  {
+    id: 'clu-7', title: '一场跨社团的共创展',
+    text: '摄影社、戏剧社和设计社想共同办展，却因风格不同争论不休。顾星野把三组人拉到同一张桌前。',
+    choices: [
+      { text: '寻找共同主题，让三种表达服务同一个故事', hint: '实践 +7 · 人缘 +6 · 学识 +3', effects: { practice: 7, social: 6, knowledge: 3 }, reply: '你们把分歧变成叙事层次。开展那天，观众在照片、台词和装置之间穿行，像读完一部立体的青春小说。' },
+      { text: '设计轮转岗位，让成员体验不同社团创作', hint: '人缘 +7 · 实践 +5 · 心态 +3', effects: { social: 7, practice: 5, mood: 3 }, reply: '摄影师学会了布光，演员学会了排版。共同创作不只完成了展览，也打破了彼此心里那道看不见的墙。' }
+    ]
+  },
+  {
+    id: 'clu-8', title: '把社团交给下一年',
+    text: '毕业前最后一次社团会议，大家决定把四年成果交给新一届。桌上摆着钥匙、账本、策划案和一叠还没来得及实施的灵感。',
+    choices: [
+      { text: '整理完整交接档案与新人训练手册', hint: '学识 +5 · 实践 +8 · 精力 -8', effects: { knowledge: 5, practice: 8, energy: -8 }, reply: '新一届成员按手册顺利完成首次活动。你知道，这个社团终于不只是某几个人的热爱。' },
+      { text: '陪新人完成一次完整活动策划', hint: '人缘 +8 · 实践 +5 · 心态 +3', effects: { social: 8, practice: 5, mood: 3 }, reply: '你把经验讲给他们听，却把决定权留给他们。活动灯亮那一刻，你悄悄退到观众席，把舞台完整交还。' }
+    ]
+  }
+);
+EXTRA_QUESTS.lake.push(
+  {
+    id: 'lake-7', title: '清晨的湖畔净滩',
+    text: '清晨的湖边散落着昨夜的饮料瓶和食品袋。环保社正在招募志愿者，你决定留出这个周六。',
+    choices: [
+      { text: '加入捡拾并记录垃圾类型数据', hint: '体魄 +5 · 学识 +4 · 实践 +6 · 精力 -10', effects: { fitness: 5, knowledge: 4, practice: 6, energy: -10 }, reply: '你们把湖面恢复干净，也把数据交给校园倡议项目。美丽并不只是看见的风景，也是愿意弯腰维护它的人。' },
+      { text: '设计更易理解的垃圾分类提示牌', hint: '实践 +7 · 人缘 +5 · 心态 +3', effects: { practice: 7, social: 5, mood: 3 }, reply: '提示牌立在人流必经处，图文简单清楚。几周后，湖边的垃圾明显少了，你的设计真的改变了行为。' }
+    ]
+  },
+  {
+    id: 'lake-8', title: '最后一次湖畔散步',
+    text: '离校前一晚，你独自回到湖边。月色落进水波，四年前那句“允许试错的路”仿佛还在风里。',
+    choices: [
+      { text: '写一封给四年前自己的信', hint: '心态 +10 · 学识 +3', effects: { mood: 10, knowledge: 3 }, reply: '你告诉那个不安的新生：慢一点没关系，走错也没关系。写完最后一个字，你终于和过去和解。' },
+      { text: '绕湖走完最后一圈，记住此刻的自己', hint: '心态 +8 · 体魄 +5 · 精力 +5', effects: { mood: 8, fitness: 5, energy: 5 }, reply: '树影、水声和晚风都被认真收进记忆。明天你要离开，但此刻的你，已经比来时更完整。' }
+    ]
+  }
+);
+
+// 为每段剧情建立五轮连续问答：前四轮塑造过程，最后一轮执行原有最终选择。
+function buildDialogueRounds(events) {
+  Object.values(events).forEach(scene => {
+    scene.quests.forEach(quest => {
+      quest.rounds = [
+        {
+          text: quest.text,
+          choices: [
+            { text: '先认真倾听，理解事情背后的感受', hint: '心态 +1', effects: { mood: 1 }, reply: '你没有急着下结论，而是先让故事完整展开。真正的理解，往往始于愿意多听一会儿。' },
+            { text: '先梳理眼前问题，找出能行动的部分', hint: '实践 +1', effects: { practice: 1 }, reply: '你把混沌的处境拆成了可以处理的小块。虽然只是很小的一步，方向却已经清晰起来。' }
+          ]
+        },
+        {
+          text: `听完对方的讲述，你对“${quest.title}”有了更具体的感受。接下来，你准备怎样深入了解？`,
+          choices: [
+            { text: '主动追问细节，确认真正重要的部分', hint: '人缘 +1', effects: { social: 1 }, reply: '你的问题不尖锐，却总能问到关键处。对方也因此愿意分享那些原本不会说出的细节。' },
+            { text: '查阅相关资料，建立更完整的判断', hint: '学识 +1', effects: { knowledge: 1 }, reply: '你从课程、案例和旧记录里找到线索。信息逐渐拼合，答案开始显露轮廓。' }
+          ]
+        },
+        {
+          text: '推进过程中出现了一个小阻碍。时间、精力和信息都不完美，你最先处理什么？',
+          choices: [
+            { text: '稳住节奏，先照顾自己的状态', hint: '心态 +1 · 精力 +2', effects: { mood: 1, energy: 2 }, reply: '你没有让焦虑牵着走，而是先恢复节奏。慢一点并没有耽误你，反而让下一步更稳。' },
+            { text: '立刻拆解任务，先解决最急的一环', hint: '实践 +1 · 精力 -2', effects: { practice: 1, energy: -2 }, reply: '你把最紧迫的问题单独拿出来处理。代价是有些疲惫，但阻塞被真正移开了。' }
+          ]
+        },
+        {
+          text: '你逐渐意识到，这件事既需要自己的判断，也需要别人的视角。下一步怎么做？',
+          choices: [
+            { text: '邀请合适的人一起补充视角', hint: '人缘 +1', effects: { social: 1 }, reply: '不同经历的人带来了你没想到的角度。答案不再只从一个人心里长出来。' },
+            { text: '独立推进核心部分，再听取反馈', hint: '学识 +1', effects: { knowledge: 1 }, reply: '你先给出自己的完整思考，再把它交给反馈检验。独立思考与开放心态并不冲突。' }
+          ]
+        },
+        {
+          text: `最后，请为“${quest.title}”做出真正影响这段校园故事的选择。`,
+          choices: quest.choices
+        }
+      ];
+    });
+  });
+}
+
+// 结局规则：五项属性达到 75 即进入“高光属性”组合判定。
+// 单个高光 5 种、双属性 10 种、三属性 10 种、四属性 5 种，加上特殊与兜底结局共 35 种。
+const ENDING_RULES = {
+  single: {
+    'knowledge': 'scholar', 'fitness': 'athlete', 'mood': 'sunshine', 'social': 'leader', 'practice': 'maker'
+  },
+  pair: {
+    'knowledge-fitness': 'field-scholar', 'knowledge-mood': 'wise-calm', 'knowledge-social': 'mentor', 'knowledge-practice': 'inventor',
+    'fitness-mood': 'adventurer', 'fitness-social': 'captain', 'fitness-practice': 'rescue', 'mood-social': 'counselor',
+    'mood-practice': 'creator', 'social-practice': 'organizer'
+  },
+  triple: {
+    'knowledge-fitness-mood': 'explorer-scholar', 'knowledge-fitness-social': 'coach', 'knowledge-fitness-practice': 'engineer-life',
+    'knowledge-mood-social': 'educator', 'knowledge-mood-practice': 'research-creator', 'knowledge-social-practice': 'entrepreneur',
+    'fitness-mood-social': 'community', 'fitness-mood-practice': 'outdoor', 'fitness-social-practice': 'public-service',
+    'mood-social-practice': 'artist'
+  },
+  quad: {
+    'knowledge-fitness-mood-social': 'humanities', 'knowledge-fitness-mood-practice': 'independent',
+    'knowledge-fitness-social-practice': 'executive', 'knowledge-mood-social-practice': 'culture',
+    'fitness-mood-social-practice': 'experience'
+  }
+};
+
+const EXTRA_ENDINGS = [
+  { id: 'athlete', title: '不断突破极限的追风者', tag: '体魄高光', text: '跑道和球场见证了你四年的坚持。毕业后，你带着稳定的节奏与强健的体魄奔向更大的赛场，也把运动变成了终身的朋友。', color: '#4f9470' },
+  { id: 'field-scholar', title: '知行合一的研学探险家', tag: '学识 × 体魄', text: '你既能在书页里追问世界，也敢用双脚丈量世界。毕业后，你加入野外科考与研学项目，让知识走出纸面，在山海之间生根。', color: '#568a79' },
+  { id: 'wise-calm', title: '清醒坚定的思想者', tag: '学识 × 心态', text: '你没有被喧闹的标准裹挟，而是用阅读与思考建立了自己的坐标。毕业后，你继续研究与写作，在复杂世界里保持罕见而珍贵的清醒。', color: '#6e7fa6' },
+  { id: 'mentor', title: '点亮课堂的青年导师', tag: '学识 × 人缘', text: '你最擅长把艰深知识讲成别人愿意靠近的问题。毕业后，你站上讲台，也曾被你耐心点亮的眼睛，如今正望向你。', color: '#7b82ae' },
+  { id: 'inventor', title: '从论文到产品的创造者', tag: '学识 × 实践', text: '你没有让好想法停在作业和论文里。毕业后，你的第一款产品正式交付，那些严谨推演与反复调试，终于成为真实世界的便利。', color: '#4f8995' },
+  { id: 'adventurer', title: '山海之间的自由行者', tag: '体魄 × 心态', text: '你学会照顾身体，也学会听从内心。毕业后，你背起行囊走向山海，用徒步、记录与体验拓展人生的边界。', color: '#69936d' },
+  { id: 'captain', title: '凝聚团队的阳光队长', tag: '体魄 × 人缘', text: '你既能冲在前面，也懂得回头等候队友。毕业后，你成为团队最可靠的主心骨，把每一次并肩作战都变成共同的成长。', color: '#5e9b78' },
+  { id: 'rescue', title: '冲在现场的行动专家', tag: '体魄 × 实践', text: '你不只在图纸上设想解决方案，更愿意抵达现场、解决问题。毕业后，你投身应急与一线项目，成为危急时刻值得信赖的人。', color: '#52866b' },
+  { id: 'counselor', title: '治愈彼此的心灵伙伴', tag: '心态 × 人缘', text: '你曾认真接住许多人的情绪，也逐渐学会照顾自己。毕业后，你投身心理支持与成长陪伴，让更多人敢于说出真实的感受。', color: '#b17f9d' },
+  { id: 'creator', title: '从容生活的独立创作者', tag: '心态 × 实践', text: '你没有把热爱交给等待，而是一件件做了出来。毕业后，你的独立作品正式上线，稳定的内心让创作成为可以长久走下去的事业。', color: '#b48575' },
+  { id: 'organizer', title: '让城市听见青年声音', tag: '人缘 × 实践', text: '你擅长连接人，也擅长把事情真正办成。毕业后，你发起城市青年项目，把课堂外的热情变成了持续发生的公共行动。', color: '#9b7c9f' },
+  { id: 'explorer-scholar', title: '永葆好奇的远行学者', tag: '学识 × 体魄 × 心态', text: '你有求知的头脑、远行的体力和不惧未知的内心。毕业后，你选择跨国研究与田野学习，让世界成为一间更大的教室。', color: '#5c8791' },
+  { id: 'coach', title: '科学训练的明星教练', tag: '学识 × 体魄 × 人缘', text: '你懂训练原理，也懂如何鼓励每一个想要放弃的人。毕业后，你带领一支年轻队伍，用科学和信任帮助他们突破自己。', color: '#528d78' },
+  { id: 'engineer-life', title: '能打硬仗的全能工程师', tag: '学识 × 体魄 × 实践', text: '复杂问题、紧张工期和真实现场都没能难倒你。毕业后，你加入重大工程项目，把可靠写进每一个细节。', color: '#4f7f82' },
+  { id: 'educator', title: '温柔坚定的教育点灯人', tag: '学识 × 心态 × 人缘', text: '你始终相信，教育不是灌输答案，而是点亮一个人。毕业后，你走向基层教育，用知识、耐心和陪伴守护孩子们的好奇。', color: '#8a82a7' },
+  { id: 'research-creator', title: '忠于自我的研究创作者', tag: '学识 × 心态 × 实践', text: '你能长期研究一个问题，也能把洞见变成作品。毕业后，你开启独立研究与创作，不追逐喧嚣，却拥有清晰而坚定的方向。', color: '#7d809e' },
+  { id: 'entrepreneur', title: '洞察需求的青年创业者', tag: '学识 × 人缘 × 实践', text: '你理解知识、理解人，也理解如何把价值交付出去。毕业后，你和伙伴创立了自己的团队，第一份真实订单为大学写下漂亮注脚。', color: '#66899a' },
+  { id: 'community', title: '快乐社群的发起人', tag: '体魄 × 心态 × 人缘', text: '你让运动不再焦虑，让参与比成绩更重要。毕业后，你创办开放运动社群，把健康、快乐和友谊带给更多人。', color: '#6d9a79' },
+  { id: 'outdoor', title: '把热爱安放在山野的主理人', tag: '体魄 × 心态 × 实践', text: '你把对自然的喜欢做成了可靠的事业。毕业后，你主理户外体验项目，带人们安全地走近山野，也学会温柔地对待自然。', color: '#668e68' },
+  { id: 'public-service', title: '热血可靠的公益领队', tag: '体魄 × 人缘 × 实践', text: '你能在一线扛事，也能组织一群人长期同行。毕业后，你带领公益服务队奔赴需要的地方，让热血成为可持续的行动。', color: '#5d9074' },
+  { id: 'artist', title: '连接人心的生活艺术家', tag: '心态 × 人缘 × 实践', text: '你善于感受生活，也善于把感受变成作品与相遇。毕业后，你创立艺术工作坊，让更多普通人在创作中表达自己。', color: '#ae8195' },
+  { id: 'humanities', title: '全面发展的通识导师', tag: '知体心友 · 四项高光', text: '你拥有广阔知识、健康体魄、稳定心态和真诚关系。毕业后，你投身通识教育，帮助年轻人成为完整而非单一标准的人。', color: '#7b8d9b' },
+  { id: 'independent', title: '自给自足的斜杠专家', tag: '知体心行 · 四项高光', text: '你既能研究，也能执行；既能全力以赴，也能照顾自己。毕业后，你建立跨领域个人事业，把多重能力组合成独特的人生。', color: '#6c8a85' },
+  { id: 'executive', title: '青年项目总指挥官', tag: '知体友行 · 四项高光', text: '你的判断、执行、体力和协作能力经受住了四年考验。毕业后，你负责大型青年项目，在高压中依然让团队保持方向与效率。', color: '#5f8190' },
+  { id: 'culture', title: '文化创意品牌主理人', tag: '知心友行 · 四项高光', text: '你有内容的深度、表达的温度，也有把创意落地的能力。毕业后，你创立文化品牌，让校园里的灵感走进更大的市场。', color: '#a37f98' },
+  { id: 'experience', title: '体验式活动的造梦师', tag: '体心友行 · 四项高光', text: '你懂参与者的感受，也有把想法执行到底的能量。毕业后，你设计城市体验与公共活动，为无数人制造值得记住的一天。', color: '#809578' },
+  { id: 'renaissance', title: '五项全能的青梧之星', tag: '全属性卓越', text: '学识、体魄、心态、人缘与实践都在四年里熠熠生辉。毕业时，你成为青梧大学的年度代表人物，但你最在意的，是终于成为了完整而自由的自己。', color: '#c49743' },
+  { id: 'balanced', title: '均衡成长的长期主义者', tag: '均衡发展 · 优异成绩', text: '你没有把四年押注在单一维度，却用稳定投入让每项能力都扎实成长，也取得了优异成绩。毕业后，你带着充足底气走向自己选择的道路。', color: '#7d9275' },
+  { id: 'steady', title: '把日子过成答案的稳健派', tag: '稳健成长', text: '你没有耀眼到成为唯一焦点，却在每个维度都留下了可靠积累。毕业后，你从容接过生活的下一棒，知道自己有能力慢慢把事情做好。', color: '#82917a' },
+  { id: 'rest', title: '重新学会休息的勇敢者', tag: '人生修复', text: '四年里你承受过疲惫，也终于承认照顾自己不是软弱。毕业后，你选择先修复身心、重建节奏。这不是停下，而是为了更长久地出发。', color: '#8a9b91' },
+  { id: 'secondChance', title: '在下一程重新出发', tag: '逆风翻盘', text: '成绩没有定义你，失落也不是故事的终点。毕业后，你认真复盘四年得失，找到更适合自己的学习与工作方式。下一程，你准备用新的方法再试一次。', color: '#9a8d7c' }
+];
+
+module.exports = { EXTRA_QUESTS, EXTRA_ENDINGS, ENDING_RULES, buildDialogueRounds };
 
 };
 modules['core'] = function(module, exports, require) {
