@@ -3,6 +3,7 @@ window.CampusRequire = (() => {
 const modules = {};
 const cache = {};
 modules['content'] = function(module, exports, require) {
+const { EXTRA_QUESTS } = require('./expansion');
 const CHARACTERS = [
   { id: 'lin', name: '林知夏', title: '清醒温柔的记录者', quote: '想把平凡的日子，过成自己的答案。', color: '#e98b78', hair: '#3d2926', skin: '#ffd8bc', hairStyle: 'long', pants: '#5b6b85', avatar: 'lin_avatar.png', stats: { knowledge: 46, fitness: 40, mood: 62, social: 54, practice: 45 }, trait: '共情倾听：对话中获得的人缘 +1' },
   { id: 'chen', name: '陈屿', title: '理性可靠的技术宅', quote: '世界很复杂，但问题总能被拆解。', color: '#6688bb', hair: '#252936', skin: '#f2c9a9', hairStyle: 'short', pants: '#3f4a5c', accessory: 'glasses', avatar: 'chen_avatar.png', stats: { knowledge: 60, fitness: 36, mood: 48, social: 36, practice: 56 }, trait: '逻辑拆解：学习事件获得的学识 +2' },
@@ -490,6 +491,11 @@ const HIDDEN_EVENTS = {
     }
   ]
 };
+// 第一轮扩展：每个场景从 2 个任务扩到 6 个（来自「最新版游戏」分支的 expansion.js）
+Object.entries(EXTRA_QUESTS).forEach(([sceneId, quests]) => {
+  if (!EVENTS[sceneId]) throw new Error(`未知扩展场景：${sceneId}`);
+  EVENTS[sceneId].quests.push(...quests);
+});
 
 module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES, statName };
 
@@ -684,6 +690,7 @@ class GameCore {
       note: entry.note || '',
       consequences: entry.consequences || [],
       // 选择日志面板（keioey 那套视图）用的字段别名
+      sceneId: entry.scene || null,
       questTitle: entry.title || '',
       choiceText: entry.choice || '',
       repeat: !!entry.repeat
@@ -1057,6 +1064,15 @@ class GameCore {
     core.triggers = (state.triggers || []).map(item => ({ ...item }));
     core.pendingChains = (state.pendingChains || []).map(item => ({ ...item }));
     if (state.absoluteWeek !== undefined) core.absoluteWeek = state.absoluteWeek;
+    // 周目继承与因果记录的进度同样要还原
+    if (state.playthrough !== undefined) core.playthrough = state.playthrough;
+    if (state.legacyId) {
+      core.legacyId = state.legacyId;
+      core.legacy = LEGACY_OPTIONS.find(item => item.id === state.legacyId) || null;
+    }
+    core.legacyEnergyBonus = state.legacyEnergyBonus || 0;
+    core.hiddenCleared = (state.hiddenCleared || []).slice();
+    if (state.choiceSeq !== undefined) core.choiceSeq = state.choiceSeq;
     if (state.rngState !== undefined) core.rng.setState(state.rngState);
     return core;
   }
