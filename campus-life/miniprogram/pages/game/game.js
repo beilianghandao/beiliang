@@ -1,6 +1,7 @@
 const { STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, semesterLabel, statName } = require('../../data/content');
 const { GameCore } = require('../../engine/core');
 const { buildChoiceLogView } = require('../../engine/choicelog');
+const Save = require('../../engine/save');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
 
@@ -8,18 +9,30 @@ const { CampusWorld } = require('../../engine/world');
 const npcByEvent = {};
 NPCS.forEach(n => { npcByEvent[n.event] = n; });
 
+// 因果面板的分类标签
+const CAUSE_TYPES = { all: '全部', quest: '任务', request: '关系', chain: '后果', hidden: '隐藏', exam: '学业', legacy: '继承' };
+const CAUSE_EMPTY = { quest: '这一段还没有可选的任务。', hidden: '还没有解锁隐藏事件。', request: '还没有人向你开口。', chain: '还没有滚出后果。', exam: '还没有考过试。', legacy: '这一局没有继承任何东西。', all: '还没有做过任何选择。' };
+
 Page({
   data: {
     modal: '', nearby: null, joyX: 0, joyY: 0, examReady: false, sceneProgress: [], logEntries: [], seedCode: '',
-    eventBadge: 0, toastVisible: false, toastTitle: '', toastDetail: '',
+    eventBadge: 0, causeCount: 0, legacyInfo: '', hiddenText: '',
+    causeFilter: 'all', cause: null,
+    toastVisible: false, toastTitle: '', toastDetail: '',
     request: null, requestChoices: [], requestSpeaker: '', requestRole: '', requestAffinity: '', requestInitial: '',
     chain: null, chainChoices: [], chainInitial: '', eventChains: [], eventRequests: [], eventTriggers: [],
-    replyTitle: '', replyKicker: '', replyAffinity: '', replyAffinityClass: ''
+    replyTitle: '', replyKicker: '', replyAffinity: '', replyAffinityClass: '', replyConsequence: '',
+    endingLegacy: ''
   },
 
   onLoad() {
+    const app = getApp();
     try {
-      this.core = new GameCore(getApp().globalData.characterId, getApp().globalData.seedCode);
+      this.core = new GameCore(app.globalData.characterId, {
+        seedCode: app.globalData.seedCode,
+        playthrough: app.globalData.playthrough || 1,
+        legacyId: app.globalData.legacyId || null
+      });
     } catch (error) {
       // 种子码不合法：说清楚原因并退回选角页，不让页面白屏
       this.broken = true;
@@ -28,7 +41,14 @@ Page({
     }
     this.world = new CampusWorld();
     this.syncData();
-    this.setData({ character: this.core.character, characterInitial: this.core.character.name.charAt(0), maxWeeks: this.core.weeksPerSemester });
+    this.setData({
+      character: this.core.character, characterInitial: this.core.character.name.charAt(0),
+      maxWeeks: this.core.weeksPerSemester,
+      legacyInfo: this.core.legacy ? `第 ${this.core.playthrough} 周目 · 继承「${this.core.legacy.name}」${this.core.legacy.effectText}` : ''
+    });
+    if (this.core.legacy) {
+      setTimeout(() => this.showToast(`第 ${this.core.playthrough} 周目 · 继承了「${this.core.legacy.name}」`, this.core.legacy.effectText), 600);
+    }
   },
 
   onReady() {
@@ -76,7 +96,9 @@ Page({
       semesterName: this.core.semesterName, weekLabel: Math.min(this.core.week, this.core.weeksPerSemester),
       completed: this.core.completed, progress: this.core.totalProgress,
       examReady: this.core.examReady, seedCode: this.core.seedCode,
-      eventBadge: this.core.pendingChainEvents().length + this.core.pendingRequests().length
+      eventBadge: this.core.pendingChainEvents().length + this.core.pendingRequests().length,
+      causeCount: this.core.choiceLog.length,
+      hiddenText: `隐藏事件 ${this.core.hiddenCleared.length} / ${this.core.totalHiddenQuests}`
     });
   },
 
@@ -251,6 +273,70 @@ Page({
     });
   },
 
+  // ============ 因果面板：翻看自己做过哪些选择、各自影响了什么 ============
+  causeItem(entry) {
+    return {
+      id: entry.id,
+      type: entry.type,
+      typeLabel: CAUSE_TYPES[entry.type] || '选择',
+      title: entry.title,
+      at: entry.at,
+      choice: entry.choice,
+      effects: Object.keys(entry.effects || {}).map(key => ({
+        key, name: key === 'energy' ? '精力' : STAT_META[key].name, value: entry.effects[key], positive: entry.effects[key] >= 0
+      })),
+      affinity: entry.affinity ? {
+        text: `${entry.affinity.name} 好感 ${entry.affinity.delta >= 0 ? '+' : ''}${entry.affinity.delta} → ${entry.affinity.total}`,
+        positive: entry.affinity.delta >= 0
+      } : null,
+      links: (entry.consequences || []).map(item => {
+        const left = item.fireAt - this.core.absoluteWeek;
+        return {
+          text: item.fired ? `第 ${item.firedAt || item.fireAt} 周引发「${item.title}」` : left > 0 ? `${left} 周后发作「${item.title}」` : `马上到你面前「${item.title}」`,
+          fired: item.fired, label: item.fired ? '已发作' : '排队中'
+        };
+      }),
+      note: (entry.consequences || []).length ? '' : (entry.note || '')
+    };
+  },
+
+  showCause() {
+    this.world.setInput(0, 0);
+    const report = this.core.causeReport();
+    const filter = this.causeFilter || 'all';
+    const entries = filter === 'all' ? report.entries : report.entries.filter(entry => entry.type === filter);
+    const groups = [];
+    entries.forEach(entry => {
+      const label = entry.semesterName || '开学之前';
+      let group = groups.find(item => item.label === label);
+      if (!group) { group = { label, count: 0, items: [] }; groups.push(group); }
+      group.count += 1;
+      group.items.push(this.causeItem(entry));
+    });
+    const info = Save.summary(Save.readMeta());
+    this.setData({
+      modal: 'cause',
+      cause: {
+        total: report.total,
+        summary: Object.keys(report.totals).map(key => ({
+          key, name: key === 'energy' ? '精力' : STAT_META[key].name, value: report.totals[key], positive: report.totals[key] >= 0
+        })),
+        tabs: Object.keys(CAUSE_TYPES).map(id => ({ id, label: CAUSE_TYPES[id], count: id === 'all' ? report.total : (report.counts[id] || 0), active: filter === id })),
+        groups,
+        empty: groups.length ? '' : (CAUSE_EMPTY[filter] || CAUSE_EMPTY.all),
+        pending: report.pending,
+        legacy: report.legacy ? { name: report.legacy.name, effectText: report.legacy.effectText, color: report.legacy.color, icon: report.legacy.icon } : null,
+        hiddenText: `隐藏事件 ${report.hidden.cleared.length} / ${report.hidden.total} · 本局已显形 ${report.hidden.unlocked.length} 个`,
+        echo: info.playthroughs > 0 ? info.lastChoiceLog.slice(-2) : []
+      }
+    });
+  },
+
+  switchCauseFilter(event) {
+    this.causeFilter = event.currentTarget.dataset.id;
+    this.showCause();
+  },
+
   // 右上角的「等着你的事」
   showEvents() {
     this.world.setInput(0, 0);
@@ -279,11 +365,13 @@ Page({
 
   chooseQuest(event) {
     const index = Number(event.currentTarget.dataset.index);
-    const quest = EVENTS[this.sceneId].quests[index];
+    const quest = this.core.questAt(this.sceneId, index);
+    if (!quest) return;
     const key = `${this.sceneId}:${index}`;
     this.questIndex = index;
     this.setData({
       modal: 'quest', quest, questDone: this.core.completed.includes(key),
+      questHidden: !!quest.requires, replyConsequence: '',
       storyNumber: String(this.core.completed.length + 1).padStart(2, '0')
     });
     setTimeout(() => this.drawSceneArt(), 80);
@@ -307,8 +395,16 @@ Page({
       const names = result.fired.map(id => CHAIN_EVENTS[id] ? CHAIN_EVENTS[id].title : id).join('、');
       this.pendingNotice = { title: '事情找上门了', detail: names };
     }
-    const quest = EVENTS[this.sceneId].quests[this.questIndex];
-    this.setData({ modal: 'reply', reply: result.reply, effects, replyTitle: quest.title, replyKicker: '故事已收入图鉴', replyAffinity: '' });
+    const quest = this.core.questAt(this.sceneId, this.questIndex) || { title: '' };
+    const chainNote = result.chained
+      ? `埋下了一个后果：${CHAIN_EVENTS[result.chained.eventId] ? CHAIN_EVENTS[result.chained.eventId].title : result.chained.eventId} 会在 ${Math.max(1, result.chained.fireAt - this.core.absoluteWeek)} 周后找上来。`
+      : '';
+    this.setData({
+      modal: 'reply', reply: result.reply, effects,
+      replyTitle: quest.title,
+      replyKicker: result.hidden ? '隐藏事件 · 已收入因果' : '故事已收入图鉴',
+      replyConsequence: chainNote, replyAffinity: ''
+    });
   },
 
   closeReply() {
@@ -355,8 +451,12 @@ Page({
       if (this.core.examAnswers.length >= this.core.currentExam.length) {
         const outcome = this.core.finishExam();
         this.syncData();
-        if (outcome && outcome.ending) this.setData({ modal: 'ending', ending: outcome.ending });
-        else if (outcome && outcome.semesterResult) this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName });
+        if (outcome && outcome.ending) {
+          this.recordRun();
+          this.setData({ modal: 'ending', ending: outcome.ending });
+        } else if (outcome && outcome.semesterResult) {
+          this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName });
+        }
       } else {
         const examIndex = this.core.examAnswers.length;
         this.setData({ examIndex, currentQuestion: this.core.currentExam[examIndex] });
@@ -364,6 +464,17 @@ Page({
     }, 180);
   },
   nextSemester() { this.setData({ modal: '' }); },
+
+  // 一局走完就把成绩并进存档，下一周目的继承列表靠它决定哪些能选
+  recordRun() {
+    if (this.runRecorded) return;
+    this.runRecorded = true;
+    const meta = Save.recordRun(this.core);
+    const unlocked = Save.legacyOptions(meta).filter(option => option.unlocked).length;
+    this.setData({
+      endingLegacy: `第 ${meta.playthroughs} 周目完成 · 下一周目可继承 ${unlocked} 项 · 隐藏事件 ${(meta.hiddenEvents || []).length} / ${Save.TOTAL_HIDDEN}`
+    });
+  },
 
   restart() { wx.setStorageSync('campus-progress', null); wx.navigateBack({ delta: 1 }); }
 });

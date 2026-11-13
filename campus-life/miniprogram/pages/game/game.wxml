@@ -7,6 +7,7 @@
       <view class="week-pill"><text class="week-dot"></text>{{semesterName}} · 第 {{weekLabel}} / 4 周</view>
       <view class="seed-pill">{{seedCode}}</view>
       <view class="header-button" bindtap="openLog">记</view>
+      <view class="header-button cause-button" bindtap="showCause">因<text wx:if="{{causeCount}}" class="cause-badge">{{causeCount}}</text></view>
       <view class="header-button event-button" bindtap="showEvents">✉<text wx:if="{{eventBadge}}" class="event-badge">{{eventBadge}}</text></view>
       <view class="header-button" bindtap="openGuide">?</view>
     </view>
@@ -16,6 +17,7 @@
     <view class="profile-row"><view class="profile-avatar" style="background:{{character.color}}">{{characterInitial}}</view><view class="profile-info"><text class="profile-name">{{character.name}}</text><text class="profile-title">{{character.title}}</text></view><view class="energy"><text>精力</text><text class="energy-value">{{energy}}</text></view></view>
     <view class="energy-track"><view style="width:{{energy}}%"></view></view>
     <view class="stats-row"><view wx:for="{{statsArray}}" wx:key="key" class="stat-chip"><text class="stat-icon" style="color:{{item.color}}">{{item.icon}}</text><text>{{item.name}}</text><text class="stat-number">{{item.value}}</text></view></view>
+    <view wx:if="{{legacyInfo}}" class="legacy-chip">{{legacyInfo}}</view>
   </view>
 
   <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 16 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view></view>
@@ -42,13 +44,20 @@
           <text class="quest-arrow">›</text>
         </button>
         <view class="quest-list">
-          <button wx:for="{{sceneProgress}}" wx:key="index" class="quest-item {{item.done ? 'done' : ''}}" data-index="{{item.index}}" bindtap="chooseQuest">
-            <text class="quest-badge">{{item.done ? '✓ 已完成' : '任务 '}}{{item.done ? '' : item.index + 1}}</text>
-            <view class="quest-mid"><text class="quest-name">{{item.quest.title}}</text><text class="quest-meta-line">{{item.done && item.times > 1 ? '已重复 ' + (item.times - 1) + ' 次 · 收益递减' : item.done ? '可重温 · 收益递减' : item.quest.choices.length + ' 个选择'}}</text></view>
-            <text class="quest-arrow">›</text>
-          </button>
+          <block wx:for="{{sceneProgress}}" wx:key="index">
+            <view wx:if="{{item.locked}}" class="quest-item locked-item">
+              <text class="quest-badge locked-badge">隐藏事件</text>
+              <view class="quest-mid"><text class="quest-name">？？？</text><text class="quest-meta-line">解锁条件：{{item.requireText}}</text></view>
+              <text class="quest-arrow">锁</text>
+            </view>
+            <button wx:else class="quest-item {{item.done ? 'done' : ''}} {{item.hidden ? 'hidden-quest' : ''}}" data-index="{{item.index}}" bindtap="chooseQuest">
+              <text class="quest-badge">{{item.hidden ? '隐藏事件' : (item.done ? '✓ 已完成' : '任务 ' + (item.index + 1))}}</text>
+              <view class="quest-mid"><text class="quest-name">{{item.quest.title}}</text><text class="quest-meta-line">{{item.done && item.times > 1 ? '已重复 ' + (item.times - 1) + ' 次 · 收益递减' : item.done ? '可重温 · 收益递减' : item.quest.choices.length + ' 个选择'}}</text></view>
+              <text class="quest-arrow">›</text>
+            </button>
+          </block>
         </view>
-        <view class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期</view>
+        <view class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期 · {{hiddenText}}</view>
         <view class="panel-link" bindtap="openLog">查看选择日志 ›</view>
       </view>
     </view>
@@ -56,7 +65,7 @@
     <view wx:if="{{modal === 'quest'}}" class="story-panel">
       <view class="story-visual" style="background:linear-gradient(130deg,{{scene.art.sky[0]}},{{scene.art.sky[1]}})"><view class="story-place">{{scene.place}}</view><view class="story-symbol">{{scene.avatar}}</view><view class="story-lines"></view></view>
       <view class="story-content">
-        <view class="story-kicker">CAMPUS STORY · {{questDone ? 'REPLAY' : 'NEW'}} · {{semesterName}} 第{{weekLabel}}周</view>
+        <view class="story-kicker">{{questHidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : 'CAMPUS STORY · ' + (questDone ? 'REPLAY' : 'NEW')}} · {{semesterName}} 第{{weekLabel}}周</view>
         <view class="story-title">{{quest.title}}</view>
         <view class="speaker-row"><view class="speaker-avatar" style="background:{{scene.color}}">{{scene.avatar}}</view><view><view class="speaker-name">{{scene.speaker}}</view><view class="speaker-role">{{scene.role}}</view></view></view>
         <view class="story-text">{{quest.text}}</view>
@@ -120,7 +129,48 @@
       <button class="secondary-button" bindtap="closeModal">知道了</button>
     </view>
 
-    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
+    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text><view wx:if="{{replyConsequence}}" class="reply-consequence">{{replyConsequence}}</view><view class="reply-cause">已写入因果面板 · 右上角「因」可随时翻看</view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
+
+    <view wx:if="{{modal === 'cause'}}" class="small-panel cause-panel">
+      <view class="panel-close" bindtap="closeModal">×</view>
+      <view class="panel-kicker">CAUSE &amp; EFFECT</view>
+      <view class="panel-title">因果面板</view>
+      <view class="exam-desc">你已经做过 <text class="cause-total">{{cause.total}}</text> 次选择。下面按时间顺序记下每一次选择、当场的影响，以及它后来引发了什么。</view>
+      <view class="cause-summary">
+        <view wx:for="{{cause.summary}}" wx:key="key" class="effect-item {{item.positive ? 'positive' : 'negative'}}">{{item.name}} {{item.positive ? '+' : ''}}{{item.value}}</view>
+        <text wx:if="{{!cause.summary.length}}" class="cause-hint">还没有产生属性变化</text>
+      </view>
+      <view wx:if="{{cause.legacy}}" class="cause-legacy"><text class="cause-legacy-icon" style="background:{{cause.legacy.color}}">{{cause.legacy.icon}}</text>本局继承「{{cause.legacy.name}}」<text class="cause-dim">{{cause.legacy.effectText}}</text></view>
+      <view class="cause-hidden">{{cause.hiddenText}}</view>
+      <view wx:if="{{cause.pending.length}}" class="trigger-list">
+        <view class="trigger-head">还没发作的后果</view>
+        <view wx:for="{{cause.pending}}" wx:key="title" class="trigger-row"><text>{{item.title}}</text><text class="trigger-in">{{item.inWeeks}} 周后发作</text></view>
+      </view>
+      <view class="cause-tabs">
+        <view wx:for="{{cause.tabs}}" wx:key="id" class="cause-tab {{item.active ? 'active' : ''}}" data-id="{{item.id}}" bindtap="switchCauseFilter">{{item.label}}<text wx:if="{{item.count}}" class="cause-tab-count">{{item.count}}</text></view>
+      </view>
+      <scroll-view scroll-y class="cause-timeline">
+        <view wx:if="{{cause.empty}}" class="exam-desc">{{cause.empty}}</view>
+        <view wx:for="{{cause.groups}}" wx:key="label" class="cause-group">
+          <view class="cause-group-head"><text>{{item.label}}</text><text class="cause-group-count">{{item.count}} 次选择</text></view>
+          <view wx:for="{{item.items}}" wx:for-item="row" wx:key="id" class="cause-row cause-{{row.type}}">
+            <view class="cause-head"><text class="cause-type">{{row.typeLabel}}</text><text class="cause-title">{{row.title}}</text><text class="cause-at">{{row.at}}</text></view>
+            <view class="cause-choice">“{{row.choice}}”</view>
+            <view wx:if="{{row.effects.length || row.affinity}}" class="cause-effects">
+              <view wx:for="{{row.effects}}" wx:for-item="effect" wx:key="key" class="effect-item {{effect.positive ? 'positive' : 'negative'}}">{{effect.name}} {{effect.positive ? '+' : ''}}{{effect.value}}</view>
+              <view wx:if="{{row.affinity}}" class="effect-item {{row.affinity.positive ? 'positive' : 'negative'}}">{{row.affinity.text}}</view>
+            </view>
+            <view wx:for="{{row.links}}" wx:for-item="link" wx:key="text" class="cause-link {{link.fired ? 'fired' : ''}}"><text>↳</text><text class="cause-link-text">{{link.text}}</text><text class="cause-link-state">{{link.label}}</text></view>
+            <view wx:if="{{row.note}}" class="cause-note">{{row.note}}</view>
+          </view>
+        </view>
+        <view wx:if="{{cause.echo.length}}" class="cause-echo">
+          <view class="trigger-head">上一周目的最后几步</view>
+          <view wx:for="{{cause.echo}}" wx:key="title" class="echo-row"><text class="echo-at">{{item.at}}</text><text class="echo-title">{{item.title}}</text><text class="echo-choice">{{item.choice}}</text></view>
+        </view>
+      </scroll-view>
+      <button class="secondary-button" bindtap="closeModal">收起面板</button>
+    </view>
 
     <view wx:if="{{modal === 'guide'}}" class="small-panel"><view class="panel-close" bindtap="closeModal">×</view><view class="panel-kicker">NEW STUDENT HANDBOOK</view><view class="panel-title">新生校园指南</view>
       <view class="guide-item"><text>01</text><view><text class="guide-bold">四年八学期</text><text class="guide-para">8 个学期覆盖完整大学四年。每学期 4 周行动 + 1 次期末考；每个场景有 2 个可接任务。</text></view></view>
@@ -128,8 +178,10 @@
       <view class="guide-item"><text>03</text><view><text class="guide-bold">做出选择</text><text class="guide-para">16 个任务各有多个选项。重复完成仍有收益，但属性成长会递减。</text></view></view>
       <view class="guide-item"><text>04</text><view><text class="guide-bold">有人会来找你</text><text class="guide-para">同学会带着请求找上门，你可以答应或拒绝。好感度记录你每一次选择，也决定你们之后能走多近。</text></view></view>
       <view class="guide-item"><text>05</text><view><text class="guide-bold">小决定会滚大</text><text class="guide-para">一次翘课会在几周后连锁引发点名、辅导员谈话、家长来电。右上角的 ✉ 提醒你还有什么事没处理。</text></view></view>
-      <view class="guide-item"><text>06</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
-      <view class="guide-item"><text>07</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道情境题 + 日常成长计分。大四下学期结束后，根据四年积累走向毕业结局。</text></view></view>
+      <view class="guide-item"><text>06</text><view><text class="guide-bold">选择有因果</text><text class="guide-para">右上角的「因」随时可以翻：每一次选择、当场的影响，以及它几周后引发了什么，都按学期记在里面，不用事后回想。</text></view></view>
+      <view class="guide-item"><text>07</text><view><text class="guide-bold">周目会累积</text><text class="guide-para">毕业之后可以带着一样东西重开：属性、道具、每周精力或一份好感。继承不同的东西，会让对应场景里藏着的隐藏事件显形。</text></view></view>
+      <view class="guide-item"><text>08</text><view><text class="guide-bold">照顾自己</text><text class="guide-para">行动消耗精力，每周恢复 10 点（江野 +8）。期末后假期会大幅恢复。</text></view></view>
+      <view class="guide-item"><text>09</text><view><text class="guide-bold">迎接毕业</text><text class="guide-para">每学期期末考 5 道情境题 + 日常成长计分。大四下学期结束后，根据四年积累走向毕业结局。</text></view></view>
       <button class="secondary-button" bindtap="closeModal">我准备好了</button><button class="text-button" bindtap="restart">重新选择角色</button>
     </view>
 
@@ -159,5 +211,7 @@
       </view>
       <button class="primary-button" bindtap="closeLog">回到刚才的地方</button>
     </view>
+
+    <view wx:if="{{modal === 'ending'}}" class="ending-panel"><view class="ending-kicker">GRADUATION · 四年旅程结束</view><view class="ending-seal" style="border-color:{{ending.color}};color:{{ending.color}}">梧</view><view class="ending-tag">{{ending.tag}}</view><view class="ending-title">{{ending.title}}</view><view class="score-ring"><text>{{ending.score}}</text><text class="score-label">四年平均成绩</text></view><view class="ending-text">{{ending.text}}</view><view class="ending-stats"><view wx:for="{{statsArray}}" wx:key="key"><text>{{item.name}}</text><text class="ending-value">{{item.value}}</text></view></view><view class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</view><view wx:if="{{endingLegacy}}" class="ending-legacy"><text class="ending-legacy-title">本局已存入存档</text><text>{{endingLegacy}}</text></view><button class="primary-button" bindtap="restart">带着一样东西重开 →</button></view>
   </view>
 </view>

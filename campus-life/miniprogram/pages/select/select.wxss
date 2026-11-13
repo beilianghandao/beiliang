@@ -63,3 +63,17 @@
 .seed-input { flex: 1; height: 76rpx; padding: 0 20rpx; border-radius: 14rpx; border: 1rpx solid rgba(112,139,116,.2); background: #fffdf4; font: bold 28rpx "Courier New", monospace; letter-spacing: 5rpx; color: #43564b; }
 .seed-apply { margin-left: 14rpx; height: 76rpx; padding: 0 30rpx; border-radius: 14rpx; background: #4f715e; color: #fffdf1; font-size: 24rpx; line-height: 76rpx; }
 .seed-hint { margin: 12rpx 0 0; font-size: 19rpx; color: #8a9389; }
+
+/* ===== 周目继承 ===== */
+.legacy-list { display: flex; flex-direction: column; gap: 14rpx; }
+.legacy-card { position: relative; display: flex; gap: 18rpx; padding: 20rpx 22rpx; background: rgba(255,253,246,.92); border: 2rpx solid #e9e2d2; border-radius: 18rpx; }
+.legacy-card.selected { border-color: #73917b; background: #f3f7ea; box-shadow: 0 8rpx 22rpx rgba(68,98,70,.12); }
+.legacy-card.locked { opacity: .55; background: #f7f5ee; }
+.legacy-card.plain { border-style: dashed; }
+.legacy-icon { flex: 0 0 auto; width: 56rpx; height: 56rpx; border-radius: 14rpx; color: #fffdf4; font: 26rpx "KaiTi", serif; text-align: center; line-height: 56rpx; }
+.legacy-body { flex: 1; display: flex; flex-direction: column; gap: 7rpx; min-width: 0; }
+.legacy-name { font-size: 27rpx; font-weight: 600; color: #42584b; }
+.legacy-desc { font-size: 21rpx; line-height: 1.5; color: #8f948a; }
+.legacy-effect { font-size: 21rpx; color: #a8823f; }
+.legacy-mark { position: absolute; right: 16rpx; top: 16rpx; width: 34rpx; height: 34rpx; border-radius: 50%; background: #6d8b74; color: #fff; font-size: 20rpx; text-align: center; line-height: 34rpx; }
+.legacy-tip { margin: 16rpx 0 26rpx; font-size: 20rpx; line-height: 1.6; color: #9a9f94; }

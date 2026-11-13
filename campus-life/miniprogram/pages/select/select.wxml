@@ -50,6 +50,31 @@
   </view>
   <view class="seed-hint">{{seedHint}}</view>
 
+  <block wx:if="{{showLegacy}}">
+    <view class="section-heading"><text>周目继承</text><text class="heading-note">{{legacyNote}}</text></view>
+    <view class="legacy-list">
+      <view wx:for="{{legacyOptions}}" wx:key="id" class="legacy-card {{legacyPick === item.id ? 'selected' : ''}} {{item.unlocked ? '' : 'locked'}}" data-id="{{item.id}}" bindtap="chooseLegacy">
+        <view class="legacy-icon" style="background:{{item.unlocked ? item.color : '#b9b5a8'}}">{{item.unlocked ? item.icon : '锁'}}</view>
+        <view class="legacy-body">
+          <text class="legacy-name">{{item.name}}</text>
+          <text class="legacy-desc">{{item.unlocked ? item.desc : item.progressText}}</text>
+          <text class="legacy-effect">{{item.unlocked ? item.effectText : '尚未满足继承条件'}}</text>
+        </view>
+        <text wx:if="{{legacyPick === item.id}}" class="legacy-mark">✓</text>
+      </view>
+      <view class="legacy-card plain {{legacyPick === 'none' ? 'selected' : ''}}" data-id="none" bindtap="chooseLegacy">
+        <view class="legacy-icon" style="background:#9a958a">空</view>
+        <view class="legacy-body">
+          <text class="legacy-name">什么都不带</text>
+          <text class="legacy-desc">像第一次那样，从零开始。</text>
+          <text class="legacy-effect">不继承任何属性或道具</text>
+        </view>
+        <text wx:if="{{legacyPick === 'none'}}" class="legacy-mark">✓</text>
+      </view>
+    </view>
+    <view class="legacy-tip">上一周目的东西只能带走一样。它会让某一项开局更强，也会让对应场景里藏着的隐藏事件显形。</view>
+  </block>
+
   <button class="start-button" bindtap="start"><text>开启我的大学故事</text><text class="arrow">→</text></button>
   <view class="footer-note">不必成为标准答案，只需要成为你自己</view>
 </view>

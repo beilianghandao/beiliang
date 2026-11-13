@@ -7,6 +7,7 @@ const modules = {
   core: 'miniprogram/engine/core.js',
   choicelog: 'miniprogram/engine/choicelog.js',
   random: 'miniprogram/engine/random.js',
+  save: 'miniprogram/engine/save.js',
   renderer: 'miniprogram/engine/renderer.js',
   world: 'miniprogram/engine/world.js'
 };

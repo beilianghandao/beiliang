@@ -1,7 +1,8 @@
-const { CHARACTERS, STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, affinityTier, getExamQuestions, semesterLabel, statName } = CampusRequire('content');
+const { CHARACTERS, STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, statName } = CampusRequire('content');
 const { GameCore } = CampusRequire('core');
 const { buildChoiceLogView } = CampusRequire('choicelog');
 const { randomSeedCode, resolveSeedInput, applySeedInput } = CampusRequire('random');
+const Save = CampusRequire('save');
 const { CampusRenderer, drawSceneArt, preloadStandees } = CampusRequire('renderer');
 const { CampusWorld } = CampusRequire('world');
 
@@ -16,9 +17,15 @@ const gameScreen = $('#game-screen');
 const modalMask = $('#modal-mask');
 const modalContent = $('#modal-content');
 const paleColors = ['#f0d9ce', '#d8e1eb', '#efe0c4', '#d5e4d8'];
+// 因果面板的分类标签
+const CAUSE_TYPES = { all: '全部', quest: '任务', request: '关系', chain: '后果', hidden: '隐藏', exam: '学业', legacy: '继承' };
+const CAUSE_EMPTY = { quest: '这一段还没有可选的任务。', hidden: '还没有解锁隐藏事件。', request: '还没有人向你开口。', chain: '还没有滚出后果。', exam: '还没有考过试。', legacy: '这一局没有继承任何东西。', all: '还没有做过任何选择。' };
 let selected = 'lin';
+let meta = Save.readMeta();
+let legacyPick = Save.defaultLegacy(meta);
+let causeFilter = 'all';
 let core, world, renderer, canvas, ctx, modal = '', modalMode = '', sceneId = '', questIndex = 0, artLoop = null;
-let activeRequest = null, activeChain = null, toastTimer = null, pendingNotice = null;
+let activeRequest = null, activeChain = null, toastTimer = null, pendingNotice = null, runRecorded = false;
 let lastTime = performance.now();
 // 种子码：开局前可以换，进了校园就一直带着，同码必然复现同一局
 let seedCode = randomSeedCode(Math.random);
@@ -101,6 +108,41 @@ function useSeedCode() {
 }
 $('#seed-apply').addEventListener('click', useSeedCode);
 $('#seed-input').addEventListener('keydown', event => { if (event.key === 'Enter') useSeedCode(); });
+// ============ 周目继承：上一局结束后，可以带走一样东西 ============
+function renderLegacy() {
+  const section = $('#legacy-section');
+  const options = Save.legacyOptions(meta);
+  const show = (meta.playthroughs || 0) > 0;
+  section.classList.toggle('hidden', !show);
+  if (!show) return;
+  const info = Save.summary(meta);
+  const last = info.lastEnding;
+  $('#legacy-note').textContent = `第 ${meta.playthroughs + 1} 周目 · 上一局${last ? `「${last.title}」${last.score} 分` : '未走完'} · 隐藏事件 ${info.hiddenCleared.length} / ${info.hiddenTotal}`;
+  const cards = options.map(option => `
+    <button class="legacy-card ${legacyPick === option.id ? 'selected' : ''} ${option.unlocked ? '' : 'locked'}" data-legacy="${option.id}" ${option.unlocked ? '' : 'disabled'}>
+      <span class="legacy-icon" style="--tone:${option.color}">${option.unlocked ? option.icon : '锁'}</span>
+      <span class="legacy-body">
+        <b>${option.name}</b>
+        <small>${option.unlocked ? option.desc : option.progressText}</small>
+        <em>${option.unlocked ? option.effectText : '尚未满足继承条件'}</em>
+      </span>
+      ${legacyPick === option.id ? '<span class="legacy-mark">✓</span>' : ''}
+    </button>`).join('');
+  const noneCard = `
+    <button class="legacy-card plain ${legacyPick ? '' : 'selected'}" data-legacy="none">
+      <span class="legacy-icon" style="--tone:#9a958a">空</span>
+      <span class="legacy-body"><b>什么都不带</b><small>像第一次那样，从零开始。</small><em>不继承任何属性或道具</em></span>
+      ${legacyPick ? '' : '<span class="legacy-mark">✓</span>'}
+    </button>`;
+  $('#legacy-grid').innerHTML = cards + noneCard;
+}
+
+$('#legacy-grid').addEventListener('click', event => {
+  const card = event.target.closest('[data-legacy]');
+  if (!card || card.disabled) return;
+  legacyPick = card.dataset.legacy === 'none' ? null : card.dataset.legacy;
+  renderLegacy();
+});
 
 function startGame() {
   // 开局前再确认一次输入框：留空就用这一局自动生成的码，填了就用填的那个，填错了不开局
@@ -112,12 +154,23 @@ function startGame() {
   if (!result.blank) { seedCode = result.code; syncSeedCode(); }
   // 先把所有角色的场景立绘丢进加载队列，避免进游戏后小人先是用线条画、再突然变成立绘
   preloadStandees(CHARACTERS.map(c => c.id).concat(NPCS.map(n => n.id)));
-  core = new GameCore(selected, seedCode); world = new CampusWorld();
+  runRecorded = false;
+  core = new GameCore(selected, { seedCode, playthrough: (meta.playthroughs || 0) + 1, legacyId: legacyPick || null });
+  world = new CampusWorld();
   selectScreen.classList.add('hidden'); gameScreen.classList.remove('hidden');
   canvas = $('#campus'); ctx = canvas.getContext('2d');
   renderer = new CampusRenderer(ctx, innerWidth, innerHeight);
   resizeCanvas(); updateHUD(); closeModal();
+  if (core.legacy) toast(`第 ${core.playthrough} 周目 · 继承了「${core.legacy.name}」`, core.legacy.effectText);
   lastTime = performance.now(); requestAnimationFrame(loop);
+}
+
+// 一局走完就把成绩并进存档：下一周目的继承列表靠它来决定哪些能选
+function recordRunOnce() {
+  if (runRecorded) return;
+  runRecorded = true;
+  meta = Save.recordRun(core);
+  legacyPick = Save.defaultLegacy(meta);
 }
 
 function resizeCanvas() {
@@ -164,6 +217,16 @@ function updateHUD() {
   $('#event-button').classList.toggle('alert', pending > 0);
   const seedPill = $('#seed-pill');
   if (seedPill) seedPill.textContent = `种子 ${core.seedCode}`;
+  // 因果面板：做了多少选择，角标就是多少
+  const causeBadge = $('#cause-badge');
+  causeBadge.textContent = core.choiceLog.length;
+  causeBadge.classList.toggle('hidden', !core.choiceLog.length);
+  // 继承来的东西挂在状态卡下面，随时知道自己带了什么重开
+  const chip = $('#legacy-chip');
+  chip.classList.toggle('hidden', !core.legacy);
+  if (core.legacy) {
+    chip.innerHTML = `<i style="--tone:${core.legacy.color}">${core.legacy.icon}</i>第 ${core.playthrough} 周目 · 继承「${core.legacy.name}」<span>${core.legacy.effectText}</span>`;
+  }
 }
 
 function updateNearby(nearby) {
@@ -251,29 +314,40 @@ function showScene(id) {
         <span class="quest-meta-line">${npc.name} 有事相求 · 答应或拒绝都会影响你们的关系</span>
         <span class="quest-arrow">›</span>
       </button>` : ''}
-      <div class="quest-list">${progress.map(p => `<button class="quest-item ${p.done ? 'done' : ''}" data-quest="${p.index}">
-        <span class="quest-badge">${p.done ? '✓ 已完成' : `任务 ${p.index + 1}`}</span>
+      <div class="quest-list">${progress.map(p => {
+        if (p.locked) return `<div class="quest-item locked-item">
+          <span class="quest-badge locked-badge">隐藏事件</span>
+          <span class="quest-name">？？？</span>
+          <span class="quest-meta-line">解锁条件：${p.requireText}</span>
+          <span class="quest-arrow">锁</span>
+        </div>`;
+        return `<button class="quest-item ${p.done ? 'done' : ''} ${p.hidden ? 'hidden-quest' : ''}" data-quest="${p.index}">
+        <span class="quest-badge">${p.hidden ? '隐藏事件' : p.done ? '✓ 已完成' : `任务 ${p.index + 1}`}</span>
         <span class="quest-name">${p.quest.title}</span>
         <span class="quest-meta-line">${p.done && p.times > 1 ? `已重复 ${p.times - 1} 次 · 收益递减` : p.done ? '可重温 · 收益递减' : `${p.quest.choices.length} 个选择`}</span>
         <span class="quest-arrow">›</span>
-      </button>`).join('')}</div>
-      <div class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期</div>
+      </button>`;
+      }).join('')}</div>
+      <div class="story-footer">每次任务消耗 1 周；每学期 4 周，期末后进入下一学期 · 隐藏事件 ${core.hiddenCleared.length} / ${core.totalHiddenQuests}</div>
       ${logLink}
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
 }
 
 function showQuest(index) {
-  const scene = EVENTS[sceneId]; const quest = scene.quests[index]; questIndex = index;
+  const scene = EVENTS[sceneId]; const quest = core.questAt(sceneId, index);
+  if (!quest) return;
+  questIndex = index;
   const key = `${sceneId}:${index}`; const done = core.completed.includes(key);
+  const hidden = !!quest.requires;
   openModal('quest', `${artCanvas(scene.art)}<article class="story-panel float-panel">
     <div class="story-visual scene-art-wrap" style="background:linear-gradient(130deg,${scene.art.sky[0]},${scene.art.sky[1]})"><div class="story-place">${scene.place}</div><div class="story-symbol">${scene.avatar}</div><div class="story-lines"></div></div>
-    <div class="story-content"><div class="story-kicker">CAMPUS STORY · ${done ? 'REPLAY' : 'NEW'} · ${core.semesterName} 第${Math.min(core.week, 4)}周</div>
+    <div class="story-content"><div class="story-kicker">${hidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : `CAMPUS STORY · ${done ? 'REPLAY' : 'NEW'}`} · ${core.semesterName} 第${Math.min(core.week, 4)}周</div>
       <h2 class="story-title">${quest.title}</h2>
-      <div class="speaker-row"><div class="speaker-avatar" style="background:${scene.color}"><img src="assets/characters/${eventAvatar[sceneId] || 'npc1_avatar.png'}" alt="${scene.speaker}"></div><div><div class="speaker-name">${scene.speaker}</div><div class="speaker-role">${scene.role}</div></div></div>
+      <div class="speaker-row"><div class="speaker-avatar" style="background:${scene.color}"><img src="assets/characters/${eventAvatar[sceneId] || 'npc1_avatar.png'}" alt="${scene.speaker}"></div><div><div class="speaker-name">${scene.speaker}</div><div class="speaker-role">${scene.role}</div></div>${hidden ? '<span class="affinity-chip hidden-chip">隐藏事件</span>' : ''}</div>
       <div class="story-text">${quest.text}</div>
       <div class="choices">${quest.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${choice.hint}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
-      <div class="story-footer">选择没有标准答案，它会塑造独一无二的你</div>
+      <div class="story-footer">选择没有标准答案，它会塑造独一无二的你 —— 每一次选择都会写进「因」面板</div>
       ${logLink}
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
@@ -336,6 +410,70 @@ function showEvents() {
     <button class="secondary-button" data-action="close">知道了</button></article>`);
 }
 
+// ============ 因果面板：随时翻看自己做过哪些选择、各自影响了什么 ============
+function causeRow(entry) {
+  const chips = effectChips(entry.effects);
+  const affinityChip = entry.affinity
+    ? `<span class="effect-item ${entry.affinity.delta >= 0 ? 'positive' : 'negative'}">${entry.affinity.name} 好感 ${entry.affinity.delta >= 0 ? '+' : ''}${entry.affinity.delta} → ${entry.affinity.total}</span>`
+    : '';
+  const links = (entry.consequences || []).map(item => {
+    const left = item.fireAt - core.absoluteWeek;
+    const when = item.fired ? `第 ${item.firedAt || item.fireAt} 周引发` : left > 0 ? `${left} 周后发作` : '马上到你面前';
+    return `<div class="cause-link ${item.fired ? 'fired' : ''}"><span>↳</span><b>${when}</b>「${item.title}」<em>${item.fired ? '已发作' : '排队中'}</em></div>`;
+  }).join('');
+  const note = !links && entry.note ? `<div class="cause-note">${entry.note}</div>` : '';
+  return `<div class="cause-row type-${entry.type}">
+    <div class="cause-head"><span class="cause-type">${CAUSE_TYPES[entry.type] || '选择'}</span><b>${entry.title}</b><span class="cause-at">${entry.at}</span></div>
+    <div class="cause-choice">“${entry.choice}”</div>
+    ${chips || affinityChip ? `<div class="cause-effects">${chips}${affinityChip}</div>` : ''}
+    ${links}${note}
+  </div>`;
+}
+
+function showCause() {
+  const report = core.causeReport();
+  const filter = CAUSE_TYPES[causeFilter] ? causeFilter : 'all';
+  const entries = filter === 'all' ? report.entries : report.entries.filter(entry => entry.type === filter);
+  const tabs = Object.keys(CAUSE_TYPES).map(id => {
+    const count = id === 'all' ? report.total : (report.counts[id] || 0);
+    return `<button class="cause-tab ${filter === id ? 'active' : ''}" data-cause-filter="${id}">${CAUSE_TYPES[id]}${count ? `<em>${count}</em>` : ''}</button>`;
+  }).join('');
+  const totals = Object.keys(report.totals).length
+    ? Object.keys(report.totals).map(key => `<span class="effect-item ${report.totals[key] >= 0 ? 'positive' : 'negative'}">${key === 'energy' ? '精力' : STAT_META[key].name} ${report.totals[key] >= 0 ? '+' : ''}${report.totals[key]}</span>`).join('')
+    : '<small class="cause-hint">还没有产生属性变化</small>';
+  const groups = [];
+  entries.forEach(entry => {
+    const label = entry.semesterName || '开学之前';
+    let group = groups.find(item => item.label === label);
+    if (!group) { group = { label, items: [] }; groups.push(group); }
+    group.items.push(entry);
+  });
+  const timeline = groups.length
+    ? groups.map(group => `<div class="cause-group"><div class="cause-group-head">${group.label}<span>${group.items.length} 次选择</span></div>${group.items.map(causeRow).join('')}</div>`).join('')
+    : `<p class="exam-desc">${CAUSE_EMPTY[filter] || CAUSE_EMPTY.all}</p>`;
+  // 继承 / 隐藏事件 / 未发作的后果，压成一行标签，把纵向空间留给时间线
+  const facts = [];
+  if (report.legacy) facts.push(`<span class="cause-fact"><i style="--tone:${report.legacy.color}">${report.legacy.icon}</i>继承「${report.legacy.name}」<em>${report.legacy.effectText}</em></span>`);
+  facts.push(`<span class="cause-fact">隐藏事件 ${report.hidden.cleared.length} / ${report.hidden.total} · 已显形 ${report.hidden.unlocked.length} 个</span>`);
+  if (report.pending.length) {
+    const first = report.pending[0];
+    facts.push(`<span class="cause-fact pending">未发作 ${report.pending.length} 件 · ${first.title}（${first.inWeeks} 周后）</span>`);
+  }
+  const factsRow = `<div class="cause-facts">${facts.join('')}</div>`;
+  const echo = (meta.playthroughs || 0) > 0 && (meta.lastChoiceLog || []).length
+    ? `<div class="cause-echo"><div class="trigger-head">上一周目的最后几步</div>${meta.lastChoiceLog.slice(-2).map(item => `<div class="echo-row"><span>${item.at}</span><b>${item.title}</b><small>${item.choice}</small></div>`).join('')}</div>`
+    : '';
+  openModal('cause', `<article class="small-panel cause-panel"><button class="panel-close" data-action="close">×</button>
+    <div class="panel-kicker">CAUSE &amp; EFFECT</div><h2 class="panel-title">因果面板</h2>
+    <p class="exam-desc">共 <b>${report.total}</b> 次选择 · 按时间顺序记下每一次选择、当场的影响，以及它后来引发的后果。</p>
+    <div class="cause-summary">${totals}</div>
+    ${factsRow}
+    <div class="cause-tabs">${tabs}</div>
+    <div class="cause-timeline">${timeline}</div>
+    ${echo}
+    <button class="secondary-button" data-action="close">收起面板</button></article>`);
+}
+
 function showGuide() {
   const items = [
     ['四年八学期','8 个学期覆盖完整大学四年。每学期 4 周行动 + 1 次期末考；每个场景有 2 个可接任务。'],
@@ -343,6 +481,8 @@ function showGuide() {
     ['做出选择','16 个任务各有多个选项。重复完成仍有收益，但属性成长会递减。'],
     ['有人会来找你','同学会带着请求找上门，你可以答应或拒绝。好感度记录你每一次选择，也决定你们之后能走多近。'],
     ['小决定会滚大','一次翘课会在几周后连锁引发点名、辅导员谈话、家长来电。右上角的 ✉ 提醒你还有什么事没处理。'],
+    ['选择有因果','右上角的「因」随时可以翻：每一次选择、当场的影响，以及它几周后引发了什么，都按学期记在里面，不用事后回想。'],
+    ['周目会累积','毕业之后可以带着一样东西重开：属性、道具、每周精力或一份好感。继承不同的东西，会让对应场景里藏着的隐藏事件显形。'],
     ['照顾自己','行动消耗精力，每周恢复 10 点（江野 +8）。精力过低会影响心态，期末后假期会大幅恢复。'],
     ['迎接毕业','每学期期末考由 5 道情境题 + 日常成长计分。大四下学期结束后，根据四年积累走向毕业结局。']
   ];
@@ -365,7 +505,11 @@ function showSemesterResult(result) {
 }
 
 function showEnding(ending) {
-  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 四年旅程结束</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div><p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta]) => `<span>${meta.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><div class="ending-seed">本局种子码 <b>${core.seedCode}</b> · 把它给同学，可以复现同一段四年</div>${logLink}<button class="primary-button" data-action="restart">开启另一种人生</button></article>`);
+  const unlocked = Save.legacyOptions(meta).filter(option => option.unlocked);
+  const savedLine = runRecorded
+    ? `<div class="ending-legacy"><b>本局已存入存档</b><span>第 ${meta.playthroughs} 周目完成 · 下一周目可继承 ${unlocked.length} 项 · 隐藏事件 ${(meta.hiddenEvents || []).length} / ${Save.TOTAL_HIDDEN}</span></div>`
+    : '';
+  openModal('ending', `<article class="ending-panel"><div class="ending-kicker">GRADUATION · 四年旅程结束</div><div class="ending-seal" style="color:${ending.color};border-color:${ending.color}">梧</div><div class="ending-tag">${ending.tag}</div><h2 class="ending-title">${ending.title}</h2><div class="score-ring"><b>${ending.score}</b><small>四年平均成绩</small></div><p class="ending-text">${ending.text}</p><div class="ending-stats">${Object.entries(STAT_META).map(([key, meta2]) => `<span>${meta2.name}<b>${core.stats[key]}</b></span>`).join('')}</div><div class="ending-quote">“大学不是一张标准答卷，而是一段允许试错的路。”</div><div class="ending-seed">本局种子码 <b>${core.seedCode}</b> · 把它给同学，可以复现同一段四年</div>${savedLine}${logLink}<button class="primary-button" data-action="restart">带着一样东西重开 →</button><button class="text-button" data-action="cause">先翻翻这一局的因果</button></article>`);
 }
 
 function interact() {
@@ -384,11 +528,15 @@ function interact() {
 
 $('#guide-button').addEventListener('click', showGuide);
 $('#log-button').addEventListener('click', showLog);
+$('#cause-button').addEventListener('click', showCause);
 $('#action-button').addEventListener('click', interact);
 $('#exam-button').addEventListener('click', showExamIntro);
 $('#event-button').addEventListener('click', showEvents);
 
 modalContent.addEventListener('click', event => {
+  // —— 因果面板的分类标签 ——
+  const causeTab = event.target.closest('[data-cause-filter]');
+  if (causeTab) { causeFilter = causeTab.dataset.causeFilter; showCause(); return; }
   const questBtn = event.target.closest('[data-quest]');
   if (questBtn) { showQuest(Number(questBtn.dataset.quest)); return; }
   // —— NPC 的请求：答应 / 拒绝 ——
@@ -436,15 +584,20 @@ modalContent.addEventListener('click', event => {
       pendingNotice = { title: '事情找上门了', detail: names };
     }
     const scene = EVENTS[sceneId];
-    showReply(`${artCanvas(scene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">故事已收入图鉴</div><h2 class="reply-title">${scene.quests[questIndex].title}</h2><p class="reply-text">${result.reply}</p><div class="effect-list">${effects}</div><button class="primary-button" data-action="continue">继续校园生活 →</button>${logLink}</article>`);
-    return;
+    const quest = core.questAt(sceneId, questIndex) || { title: '' };
+    const kicker = result.hidden ? '隐藏事件 · 已收入因果' : '故事已收入图鉴';
+    const chainNote = result.chained
+      ? `<div class="reply-consequence">这个选择埋下了一个后果：${CHAIN_EVENTS[result.chained.eventId] ? CHAIN_EVENTS[result.chained.eventId].title : result.chained.eventId} 会在 ${Math.max(1, result.chained.fireAt - core.absoluteWeek)} 周后找上来。</div>`
+      : '';
+    openModal('reply', `${artCanvas(scene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">${kicker}</div><h2 class="reply-title">${quest.title}</h2><p class="reply-text">${result.reply}</p><div class="effect-list">${effects}</div>${chainNote}<div class="reply-cause">已写入因果面板 · 右上角「因」可随时翻看</div><button class="primary-button" data-action="continue">继续校园生活 →</button>${logLink}</article>`, 'scene');
+    startArt($('#scene-full-art'), scene.art); return;
   }
   const answer = event.target.closest('[data-answer]');
   if (answer) {
     core.answerExam(Number(answer.dataset.answer));
     if (core.examAnswers.length >= core.currentExam.length) {
       const outcome = core.finishExam(); updateHUD();
-      if (outcome && outcome.ending) showEnding(outcome.ending);
+      if (outcome && outcome.ending) { recordRunOnce(); showEnding(outcome.ending); }
       else if (outcome && outcome.semesterResult) showSemesterResult(outcome.semesterResult);
     } else showQuestion(); return;
   }
@@ -454,6 +607,7 @@ modalContent.addEventListener('click', event => {
   if (action === 'log') { showLog(); }
   if (action === 'continue') { core.examReady ? showExamIntro() : closeModal(); flushNotice(); }
   if (action === 'start-exam') { core.startExam(); showQuestion(); }
+  if (action === 'cause') { showCause(); }
   if (action === 'restart') location.reload();
 });
 
@@ -487,3 +641,4 @@ joystick.addEventListener('pointerup', endJoystick); joystick.addEventListener('
 
 characterCards();
 syncSeedCode();
+renderLegacy();

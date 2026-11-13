@@ -349,6 +349,7 @@ test('引擎与数据层不出现非确定性随机来源', () => {
   ['engine', 'data'].forEach(dir => {
     const files = fs.readdirSync(path.join(__dirname, '../miniprogram', dir)).filter(file => file.endsWith('.js'));
     files.forEach(file => {
+      if (dir === 'engine' && file === 'save.js') return;  // 存档层允许写时间戳
       const source = fs.readFileSync(path.join(__dirname, '../miniprogram', dir, file), 'utf8');
       assert.ok(!/Math\.random|Date\.now|new Date\(/.test(source), `${dir}/${file} 出现了非确定性随机`);
     });
