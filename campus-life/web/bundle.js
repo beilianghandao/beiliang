@@ -2095,7 +2095,7 @@ function walkTexture(id, n, view) {
   // 侧面沿用旧命名；正面 / 背面加 f / b 后缀，各自是独立素材
   const tail = v === 'front' ? '_walk_f' + n : v === 'back' ? '_walk_b' + n : '_walk' + n;
   // 换图后必须带版本串：预览面板会按 URL 缓存旧图，导致「站着是新形象、一走还是旧图」
-  img.src = STANDEE_SRC + id + tail + '.png?v=10';
+  img.src = STANDEE_SRC + id + tail + '.png?v=11';
   return null;
 }
 
