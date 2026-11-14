@@ -22,7 +22,7 @@
 
   <view class="quest-card"><view class="quest-label">大学四年 · 目标</view><view class="quest-text">探索 8 个场景 × 64 段故事，读完八个学期</view><view class="quest-progress"><view style="width:{{progress}}%"></view></view><view class="quest-meta"><text>第 {{semester}} / 8 学期</text><text>{{progress}}%</text></view></view>
 
-  <view wx:if="{{nearby && !modal}}" class="location-toast"><text class="location-pin">⌖</text><view><text class="location-name">{{nearby.name}}</text><text class="location-tip">点击右下角，查看可接任务</text></view></view>
+  <view wx:if="{{nearby && !modal}}" class="location-toast" bindtap="interact"><text class="location-pin">⌖</text><view><text class="location-name">{{nearby.name}}</text><text class="location-tip">点击进入，查看可接任务</text></view></view>
   <view wx:if="{{toastVisible}}" class="toast"><text class="toast-title">{{toastTitle}}</text><text wx:if="{{toastDetail}}" class="toast-detail">{{toastDetail}}</text></view>
 
   <view class="joystick" bindtouchstart="joyStart" bindtouchmove="joyMove" bindtouchend="joyEnd" bindtouchcancel="joyEnd"><view class="joy-ring"></view><view class="joy-arrows">⌃</view><view class="joy-knob" style="transform:translate({{joyX}}px,{{joyY}}px)"></view></view>
