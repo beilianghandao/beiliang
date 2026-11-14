@@ -530,6 +530,8 @@ $('#guide-button').addEventListener('click', showGuide);
 $('#log-button').addEventListener('click', showLog);
 $('#cause-button').addEventListener('click', showCause);
 $('#action-button').addEventListener('click', interact);
+// 提示卡片上写着「点击进入」，那就得真的能点：与右下角按钮同一个入口
+$('#location-toast').addEventListener('click', interact);
 $('#exam-button').addEventListener('click', showExamIntro);
 $('#event-button').addEventListener('click', showEvents);
 
