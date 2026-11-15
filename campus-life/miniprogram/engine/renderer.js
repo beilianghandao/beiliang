@@ -83,6 +83,23 @@ const FIG = {
 const STANDEE_SRC = 'assets/characters/';
 const _standeeCache = {};
 
+/* 四角采样判断这张图是不是已经带透明底 */
+function isPreMatted(img) {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return false;
+  if (typeof document === 'undefined' || !document.createElement) return false;
+  const cv = document.createElement('canvas');
+  cv.width = 8; cv.height = 8;
+  const g = cv.getContext('2d');
+  if (!g) return false;
+  g.drawImage(img, 0, 0, 8, 8);
+  const d = g.getImageData(0, 0, 8, 8).data;
+  let clear = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 12) clear++;
+  return clear >= 48;                 // 64 个采样点里大半透明，就当已抠好
+}
+
 function matteStandee(img) {
   const iw = img.naturalWidth || img.width;
   const ih = img.naturalHeight || img.height;
@@ -154,7 +171,16 @@ function standeeTexture(id, view) {
   _standeeCache[key] = null;
   if (typeof document === 'undefined' || !document.createElement) return null;
   const img = document.createElement('img');
-  img.onload = () => { const sp = matteStandee(img); if (sp) _standeeCache[key] = sp; };
+  img.onload = () => {
+    // 离线已经抠好透明底的图，不能再走一遍泛洪 + 强制 alpha：
+    // matteStandee 会把边缘像素的 alpha 钉成 168，而它们的 RGB 仍混着白底，
+    // 画到草地上就是一圈浅灰描边。
+    if (isPreMatted(img)) {
+      _standeeCache[key] = { cv: img, w: img.naturalWidth, h: img.naturalHeight };
+      return;
+    }
+    const sp = matteStandee(img); if (sp) _standeeCache[key] = sp;
+  };
   img.src = STANDEE_SRC + id + '_standee' + suffix + '.png';
   return null;
 }
@@ -183,7 +209,7 @@ function walkTexture(id, n, view) {
   // 侧面沿用旧命名；正面 / 背面加 f / b 后缀，各自是独立素材
   const tail = v === 'front' ? '_walk_f' + n : v === 'back' ? '_walk_b' + n : '_walk' + n;
   // 换图后必须带版本串：预览面板会按 URL 缓存旧图，导致「站着是新形象、一走还是旧图」
-  img.src = STANDEE_SRC + id + tail + '.png?v=11';
+  img.src = STANDEE_SRC + id + tail + '.png?v=12';
   return null;
 }
 
