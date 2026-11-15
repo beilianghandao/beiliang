@@ -205,9 +205,6 @@ function updateHUD() {
   $('#profile-name').textContent = core.character.name; $('#profile-title').textContent = core.character.title;
   $('#energy-value').textContent = core.energy; $('#energy-bar').style.width = `${core.energy}%`;
   $('#stats-row').innerHTML = Object.entries(STAT_META).map(([key, meta]) => `<span class="stat-chip"><i style="color:${meta.color}">${meta.icon}</i>${meta.name}<b>${core.stats[key]}</b></span>`).join('');
-  $('#quest-bar').style.width = `${core.totalProgress}%`;
-  $('#quest-count').textContent = `已完成 ${core.completed.length} / 16 段故事`;
-  $('#quest-percent').textContent = `第 ${core.semester} / 8 学期`;
   $('#exam-button').classList.toggle('hidden', !core.examReady);
   // 有等着处理的事，右上角就亮一个红点
   const pending = core.pendingChainEvents().length + core.pendingRequests().length;
