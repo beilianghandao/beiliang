@@ -1,4 +1,4 @@
-const { CHARACTERS, STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, statName } = CampusRequire('content');
+const { CHARACTERS, STAT_META, EVENTS, NPCS, BUILDINGS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, statName } = CampusRequire('content');
 const { GameCore } = CampusRequire('core');
 const { buildChoiceLogView } = CampusRequire('choicelog');
 const { randomSeedCode, resolveSeedInput, applySeedInput } = CampusRequire('random');
@@ -655,9 +655,28 @@ window.addEventListener('keyup', event => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   world.setKey(key, false);
 });
+/* 门口那块「进入XX」是画在画布上的，点它应该直接进去，而不是先走过去再点卡片 */
+function hitDoorLabel(point) {
+  const near = renderer.nearby;
+  if (!near || !near.event) return false;
+  const building = BUILDINGS.find(b => b.id === near.id);
+  if (!building) return false;
+  return point.x > building.doorX - 78 && point.x < building.doorX + 78 &&
+         point.y > building.doorY - 46 && point.y < building.doorY - 6;
+}
+
 $('#campus').addEventListener('pointerdown', event => {
   if (modal || event.pointerType === 'touch') return;
-  const point = renderer.screenToWorld(event.clientX, event.clientY); world.setTarget(point.x, point.y);
+  const point = renderer.screenToWorld(event.clientX, event.clientY);
+  if (hitDoorLabel(point)) { interact(); return; }
+  world.setTarget(point.x, point.y);
+});
+
+// 悬在「进入XX」上时给个手型，让人知道能点
+$('#campus').addEventListener('pointermove', event => {
+  if (modal) return;
+  const point = renderer.screenToWorld(event.clientX, event.clientY);
+  $('#campus').style.cursor = hitDoorLabel(point) ? 'pointer' : 'default';
 });
 const joystick = $('#joystick'); const knob = $('#joy-knob');
 function moveJoystick(event) {
