@@ -3,7 +3,7 @@ window.CampusRequire = (() => {
 const modules = {};
 const cache = {};
 modules['content'] = function(module, exports, require) {
-const { EXTRA_QUESTS } = require('expansion');
+const { EXTRA_QUESTS, buildDialogueRounds } = require('expansion');
 const CHARACTERS = [
   { id: 'lin', name: '林知夏', title: '清醒温柔的记录者', quote: '想把平凡的日子，过成自己的答案。', color: '#e98b78', hair: '#3d2926', skin: '#ffd8bc', hairStyle: 'long', pants: '#5b6b85', avatar: 'lin_avatar.png', stats: { knowledge: 46, fitness: 40, mood: 62, social: 54, practice: 45 }, trait: '共情倾听：对话中获得的人缘 +1' },
   { id: 'chen', name: '陈屿', title: '理性可靠的技术宅', quote: '世界很复杂，但问题总能被拆解。', color: '#6688bb', hair: '#252936', skin: '#f2c9a9', hairStyle: 'short', pants: '#3f4a5c', accessory: 'glasses', avatar: 'chen_avatar.png', stats: { knowledge: 60, fitness: 36, mood: 48, social: 36, practice: 56 }, trait: '逻辑拆解：学习事件获得的学识 +2' },
@@ -496,6 +496,9 @@ Object.entries(EXTRA_QUESTS).forEach(([sceneId, quests]) => {
   if (!EVENTS[sceneId]) throw new Error(`未知扩展场景：${sceneId}`);
   EVENTS[sceneId].quests.push(...quests);
 });
+
+// 第二轮扩展：每个任务再拆成 5 轮问答（前 4 轮只影响属性，第 5 轮才是最终选择）
+buildDialogueRounds(EVENTS);
 
 module.exports = { CHARACTERS, STAT_META, BUILDINGS, EVENTS, NPCS, ENDINGS, EXAM_BANK, REQUESTS, CHAIN_EVENTS, AFFINITY_TIERS, LEGACY_OPTIONS, HIDDEN_EVENTS, affinityTier, getExamQuestions, semesterLabel, YEAR_NAMES, statName };
 
@@ -1442,6 +1445,37 @@ class GameCore {
   }
 
   // ============ 主流程 ============
+
+  /* 过程问答：一段任务先聊 3~4 轮，每轮只影响属性、不推进周数，
+     最后那一轮才交给 applyChoice 结算（推进 1 周、写日志、触发请求与连锁）。
+     rounds 由 data/expansion.js 的 buildDialogueRounds 在启动时挂到每个 quest 上。 */
+  applyDialogueChoice(sceneId, questIndex, roundIndex, choiceIndex) {
+    if (this.examReady || this.ending) return null;
+    const scene = EVENTS[sceneId];
+    const quest = scene && scene.quests[questIndex];
+    if (!quest) return null;
+    if (quest.requires && !this.hiddenUnlocked(quest)) return null;
+    const rounds = quest.rounds || [];
+    const round = rounds[roundIndex];
+    const choice = round && round.choices && round.choices[choiceIndex];
+    if (!choice) return null;
+
+    const key = `${sceneId}:${questIndex}`;
+    const repeat = (this.visited[key] || 0) > 0;
+    const factor = repeat ? 0.5 : 1;
+    const applied = {};
+    Object.keys(choice.effects || {}).forEach(k => {
+      const raw = choice.effects[k] || 0;
+      let value = Math.round(raw * factor);
+      // 过程问答里正收益至少给 1，别因为递减变成 0 让人白点一次
+      if (k !== 'energy' && raw > 0) value = Math.max(1, value);
+      applied[k] = value;
+      if (k === 'energy') this.energy = clamp(this.energy + value);
+      else if (this.stats[k] !== undefined) this.stats[k] = clamp(this.stats[k] + value);
+    });
+
+    return { reply: choice.reply, applied, repeat, roundIndex, roundsLength: rounds.length };
+  }
 
   applyChoice(sceneId, questIndex, choiceIndex) {
     if (this.examReady || this.ending) return null;

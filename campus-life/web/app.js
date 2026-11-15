@@ -24,7 +24,7 @@ let selected = 'lin';
 let meta = Save.readMeta();
 let legacyPick = Save.defaultLegacy(meta);
 let causeFilter = 'all';
-let core, world, renderer, canvas, ctx, modal = '', modalMode = '', sceneId = '', questIndex = 0, artLoop = null;
+let core, world, renderer, canvas, ctx, modal = '', modalMode = '', sceneId = '', questIndex = 0, dialogueRound = 0, artLoop = null;
 let activeRequest = null, activeChain = null, toastTimer = null, pendingNotice = null, runRecorded = false;
 let lastTime = performance.now();
 // 种子码：开局前可以换，进了校园就一直带着，同码必然复现同一局
@@ -288,7 +288,7 @@ function closeLog() {
   const back = logHistory; logHistory = null;
   if (!back) { closeModal(); updateHUD(); return; }
   if (back.name === 'scene') showScene(sceneId);
-  else if (back.name === 'quest') showQuest(questIndex);
+  else if (back.name === 'quest') showQuest(questIndex, true);
   else if (back.name === 'reply') showReply();
   else openModal(back.name, back.html, back.mode);
 }
@@ -324,7 +324,7 @@ function showScene(id) {
         return `<button class="quest-item ${p.done ? 'done' : ''} ${p.hidden ? 'hidden-quest' : ''}" data-quest="${p.index}">
         <span class="quest-badge">${p.hidden ? '隐藏事件' : p.done ? '✓ 已完成' : `任务 ${p.index + 1}`}</span>
         <span class="quest-name">${p.quest.title}</span>
-        <span class="quest-meta-line">${p.done && p.times > 1 ? `已重复 ${p.times - 1} 次 · 收益递减` : p.done ? '可重温 · 收益递减' : `${p.quest.choices.length} 个选择`}</span>
+        <span class="quest-meta-line">${p.done && p.times > 1 ? `已重复 ${p.times - 1} 次 · 收益递减` : p.done ? '可重温 · 收益递减' : `${p.quest.rounds ? `${p.quest.rounds.length} 轮问答 · ` : ''}${p.quest.choices.length} 个最终选择`}</span>
         <span class="quest-arrow">›</span>
       </button>`;
       }).join('')}</div>
@@ -334,26 +334,41 @@ function showScene(id) {
   startArt($('#scene-full-art'), scene.art);
 }
 
-function showQuest(index) {
+/* 多轮问答的上下文：quest.rounds 由 data/expansion.js 在启动时生成；
+   没有 rounds 的老任务按单轮处理，逻辑完全兼容。 */
+function questRoundsOf(quest) {
+  return quest && quest.rounds && quest.rounds.length ? quest.rounds : null;
+}
+
+function showQuest(index, keepRound) {
   const scene = EVENTS[sceneId]; const quest = core.questAt(sceneId, index);
   if (!quest) return;
+  if (!keepRound || questIndex !== index) dialogueRound = 0;
   questIndex = index;
   const key = `${sceneId}:${index}`; const done = core.completed.includes(key);
   const hidden = !!quest.requires;
+  const rounds = questRoundsOf(quest);
+  const total = rounds ? rounds.length : 1;
+  const roundIndex = rounds ? Math.min(dialogueRound, total - 1) : 0;
+  const round = rounds ? rounds[roundIndex] : quest;
+  const isFinal = roundIndex >= total - 1;
+  const roundTag = total > 1 ? ` · 第 ${roundIndex + 1} / ${total} 轮` : '';
+  const footer = isFinal
+    ? '选择没有标准答案，它会塑造独一无二的你 —— 每一次选择都会写进「因」面板'
+    : `过程问答 ${roundIndex + 1} / ${total} · 这一轮只小幅影响属性，最后才结算整段故事`;
   openModal('quest', `${artCanvas(scene.art)}<article class="story-panel float-panel">
     <div class="story-visual scene-art-wrap" style="background:linear-gradient(130deg,${scene.art.sky[0]},${scene.art.sky[1]})"><div class="story-place">${scene.place}</div><div class="story-symbol">${scene.avatar}</div><div class="story-lines"></div></div>
-    <div class="story-content"><div class="story-kicker">${hidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : `CAMPUS STORY · ${done ? 'REPLAY' : 'NEW'}`} · ${core.semesterName} 第${Math.min(core.week, 4)}周</div>
+    <div class="story-content"><div class="story-kicker">${hidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : `CAMPUS STORY · ${done ? 'REPLAY' : 'NEW'}`}${roundTag} · ${core.semesterName} 第${Math.min(core.week, 4)}周</div>
       <h2 class="story-title">${quest.title}</h2>
       <div class="speaker-row"><div class="speaker-avatar" style="background:${scene.color}"><img src="assets/characters/${eventAvatar[sceneId] || 'npc1_avatar.png'}" alt="${scene.speaker}"></div><div><div class="speaker-name">${scene.speaker}</div><div class="speaker-role">${scene.role}</div></div>${hidden ? '<span class="affinity-chip hidden-chip">隐藏事件</span>' : ''}</div>
-      <div class="story-text">${quest.text}</div>
-      <div class="choices">${quest.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${choice.hint}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
-      <div class="story-footer">选择没有标准答案，它会塑造独一无二的你 —— 每一次选择都会写进「因」面板</div>
+      <div class="story-text">${round.text}</div>
+      <div class="choices">${round.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${choice.hint}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
+      <div class="story-footer">${footer}</div>
       ${logLink}
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
 }
 
-// 属性变化的胶囊标签，和剧情面板里用的是一套
 function effectChips(applied) {
   return Object.entries(applied || {}).map(([key, value]) => `<span class="effect-item ${value >= 0 ? 'positive' : 'negative'}">${key === 'energy' ? '精力' : STAT_META[key].name} ${value >= 0 ? '+' : ''}${value}</span>`).join('');
 }
@@ -576,6 +591,18 @@ modalContent.addEventListener('click', event => {
   }
   const choice = event.target.closest('[data-choice]');
   if (choice) {
+    // —— 过程问答：还有下一轮就只结算这一轮，不推进周数、不写日志 ——
+    const curQuest = core.questAt(sceneId, questIndex);
+    const curRounds = questRoundsOf(curQuest);
+    if (curRounds && dialogueRound < curRounds.length - 1) {
+      const step = core.applyDialogueChoice(sceneId, questIndex, dialogueRound, Number(choice.dataset.choice));
+      if (!step) return;
+      updateHUD();
+      const stepScene = EVENTS[sceneId];
+      openModal('reply', `${artCanvas(stepScene.art)}<article class="reply-panel float-panel"><div class="reply-spark">✦</div><div class="reply-kicker">第 ${step.roundIndex + 1} / ${step.roundsLength} 轮问答已完成</div><h2 class="reply-title">${curQuest.title}</h2><p class="reply-text">${step.reply || '你把这一步想清楚了。'}</p><div class="effect-list">${effectChips(step.applied)}</div><button class="primary-button" data-action="next-round">继续第 ${step.roundIndex + 2} 轮问答 →</button>${logLink}</article>`, 'scene');
+      startArt($('#scene-full-art'), stepScene.art);
+      return;
+    }
     const result = core.applyChoice(sceneId, questIndex, Number(choice.dataset.choice)); if (!result) return;
     const effects = effectChips(result.applied);
     updateHUD();
@@ -608,6 +635,7 @@ modalContent.addEventListener('click', event => {
   if (action === 'close-log') { closeLog(); }
   if (action === 'log') { showLog(); }
   if (action === 'continue') { core.examReady ? showExamIntro() : closeModal(); flushNotice(); }
+  if (action === 'next-round') { dialogueRound += 1; showQuest(questIndex, true); }
   if (action === 'start-exam') { core.startExam(); showQuestion(); }
   if (action === 'cause') { showCause(); }
   if (action === 'restart') location.reload();

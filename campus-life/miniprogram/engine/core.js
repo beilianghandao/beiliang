@@ -414,6 +414,37 @@ class GameCore {
 
   // ============ 主流程 ============
 
+  /* 过程问答：一段任务先聊 3~4 轮，每轮只影响属性、不推进周数，
+     最后那一轮才交给 applyChoice 结算（推进 1 周、写日志、触发请求与连锁）。
+     rounds 由 data/expansion.js 的 buildDialogueRounds 在启动时挂到每个 quest 上。 */
+  applyDialogueChoice(sceneId, questIndex, roundIndex, choiceIndex) {
+    if (this.examReady || this.ending) return null;
+    const scene = EVENTS[sceneId];
+    const quest = scene && scene.quests[questIndex];
+    if (!quest) return null;
+    if (quest.requires && !this.hiddenUnlocked(quest)) return null;
+    const rounds = quest.rounds || [];
+    const round = rounds[roundIndex];
+    const choice = round && round.choices && round.choices[choiceIndex];
+    if (!choice) return null;
+
+    const key = `${sceneId}:${questIndex}`;
+    const repeat = (this.visited[key] || 0) > 0;
+    const factor = repeat ? 0.5 : 1;
+    const applied = {};
+    Object.keys(choice.effects || {}).forEach(k => {
+      const raw = choice.effects[k] || 0;
+      let value = Math.round(raw * factor);
+      // 过程问答里正收益至少给 1，别因为递减变成 0 让人白点一次
+      if (k !== 'energy' && raw > 0) value = Math.max(1, value);
+      applied[k] = value;
+      if (k === 'energy') this.energy = clamp(this.energy + value);
+      else if (this.stats[k] !== undefined) this.stats[k] = clamp(this.stats[k] + value);
+    });
+
+    return { reply: choice.reply, applied, repeat, roundIndex, roundsLength: rounds.length };
+  }
+
   applyChoice(sceneId, questIndex, choiceIndex) {
     if (this.examReady || this.ending) return null;
     const scene = EVENTS[sceneId];

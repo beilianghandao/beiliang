@@ -22,6 +22,7 @@ Page({
     request: null, requestChoices: [], requestSpeaker: '', requestRole: '', requestAffinity: '', requestInitial: '',
     chain: null, chainChoices: [], chainInitial: '', eventChains: [], eventRequests: [], eventTriggers: [],
     replyTitle: '', replyKicker: '', replyAffinity: '', replyAffinityClass: '', replyConsequence: '',
+    questText: '', questChoices: [], questRound: 1, questRounds: 1, questFinal: true, nextReply: false,
     endingLegacy: ''
   },
 
@@ -363,24 +364,65 @@ Page({
     if (request) this.showRequest(request);
   },
 
+  /* 多轮问答：quest.rounds 由 data/expansion.js 在启动时生成，
+     没有 rounds 的老任务按单轮处理。 */
+  renderQuestRound() {
+    const quest = this.core.questAt(this.sceneId, this.questIndex) || {};
+    const rounds = quest.rounds && quest.rounds.length ? quest.rounds : null;
+    const total = rounds ? rounds.length : 1;
+    const idx = rounds ? Math.min(this.dialogueRound || 0, total - 1) : 0;
+    const round = rounds ? rounds[idx] : quest;
+    return {
+      questText: round.text || '',
+      questChoices: round.choices || [],
+      questRound: idx + 1,
+      questRounds: total,
+      questFinal: idx >= total - 1
+    };
+  },
+
+  nextRound() {
+    this.dialogueRound = (this.dialogueRound || 0) + 1;
+    this.setData(Object.assign({ modal: 'quest', replyConsequence: '', nextReply: false }, this.renderQuestRound()));
+    setTimeout(() => this.drawSceneArt(), 80);
+  },
+
   chooseQuest(event) {
     const index = Number(event.currentTarget.dataset.index);
     const quest = this.core.questAt(this.sceneId, index);
     if (!quest) return;
     const key = `${this.sceneId}:${index}`;
     this.questIndex = index;
-    this.setData({
+    this.dialogueRound = 0;
+    this.setData(Object.assign({
       modal: 'quest', quest, questDone: this.core.completed.includes(key),
-      questHidden: !!quest.requires, replyConsequence: '',
+      questHidden: !!quest.requires, replyConsequence: '', nextReply: false,
       storyNumber: String(this.core.completed.length + 1).padStart(2, '0')
-    });
+    }, this.renderQuestRound()));
     setTimeout(() => this.drawSceneArt(), 80);
   },
 
   backToScene() { this.setData({ modal: 'scene', sceneProgress: this.core.sceneProgress(this.sceneId) }); setTimeout(() => this.drawSceneArt(), 80); },
 
   chooseStory(event) {
-    const result = this.core.applyChoice(this.sceneId, this.questIndex, Number(event.currentTarget.dataset.index));
+    const choiceIndex = Number(event.currentTarget.dataset.index);
+    const curQuest = this.core.questAt(this.sceneId, this.questIndex) || { title: '' };
+    const curRounds = curQuest.rounds && curQuest.rounds.length ? curQuest.rounds : null;
+    if (curRounds && (this.dialogueRound || 0) < curRounds.length - 1) {
+      const step = this.core.applyDialogueChoice(this.sceneId, this.questIndex, this.dialogueRound, choiceIndex);
+      if (!step) return;
+      const stepEffects = Object.keys(step.applied).map(key => ({ key, name: statName(key), value: step.applied[key] }));
+      wx.setStorageSync('campus-progress', this.core.serialize());
+      this.syncData();
+      this.setData({
+        modal: 'reply', reply: step.reply || '你把这一步想清楚了。', effects: stepEffects,
+        replyTitle: curQuest.title,
+        replyKicker: `第 ${step.roundIndex + 1} / ${step.roundsLength} 轮问答已完成`,
+        replyConsequence: '', replyAffinity: '', nextReply: true
+      });
+      return;
+    }
+    const result = this.core.applyChoice(this.sceneId, this.questIndex, choiceIndex);
     if (!result) return;
     const effects = Object.keys(result.applied).map(key => ({ key, name: statName(key), value: result.applied[key] }));
     wx.setStorageSync('campus-progress', this.core.serialize());
@@ -403,7 +445,7 @@ Page({
       modal: 'reply', reply: result.reply, effects,
       replyTitle: quest.title,
       replyKicker: result.hidden ? '隐藏事件 · 已收入因果' : '故事已收入图鉴',
-      replyConsequence: chainNote, replyAffinity: ''
+      replyConsequence: chainNote, replyAffinity: '', nextReply: false
     });
   },
 

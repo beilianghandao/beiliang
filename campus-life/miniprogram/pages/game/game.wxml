@@ -52,7 +52,7 @@
             </view>
             <button wx:else class="quest-item {{item.done ? 'done' : ''}} {{item.hidden ? 'hidden-quest' : ''}}" data-index="{{item.index}}" bindtap="chooseQuest">
               <text class="quest-badge">{{item.hidden ? '隐藏事件' : (item.done ? '✓ 已完成' : '任务 ' + (item.index + 1))}}</text>
-              <view class="quest-mid"><text class="quest-name">{{item.quest.title}}</text><text class="quest-meta-line">{{item.done && item.times > 1 ? '已重复 ' + (item.times - 1) + ' 次 · 收益递减' : item.done ? '可重温 · 收益递减' : item.quest.choices.length + ' 个选择'}}</text></view>
+              <view class="quest-mid"><text class="quest-name">{{item.quest.title}}</text><text class="quest-meta-line">{{item.done && item.times > 1 ? '已重复 ' + (item.times - 1) + ' 次 · 收益递减' : item.done ? '可重温 · 收益递减' : (item.quest.rounds ? item.quest.rounds.length + ' 轮问答 · ' : '') + item.quest.choices.length + ' 个最终选择'}}</text></view>
               <text class="quest-arrow">›</text>
             </button>
           </block>
@@ -65,14 +65,14 @@
     <view wx:if="{{modal === 'quest'}}" class="story-panel">
       <view class="story-visual" style="background:linear-gradient(130deg,{{scene.art.sky[0]}},{{scene.art.sky[1]}})"><view class="story-place">{{scene.place}}</view><view class="story-symbol">{{scene.avatar}}</view><view class="story-lines"></view></view>
       <view class="story-content">
-        <view class="story-kicker">{{questHidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : 'CAMPUS STORY · ' + (questDone ? 'REPLAY' : 'NEW')}} · {{semesterName}} 第{{weekLabel}}周</view>
+        <view class="story-kicker">{{questHidden ? 'HIDDEN SCENE · 只有这一周目才看得到' : 'CAMPUS STORY · ' + (questDone ? 'REPLAY' : 'NEW')}}{{questRounds > 1 ? ' · 第 ' + questRound + ' / ' + questRounds + ' 轮' : ''}} · {{semesterName}} 第{{weekLabel}}周</view>
         <view class="story-title">{{quest.title}}</view>
         <view class="speaker-row"><view class="speaker-avatar" style="background:{{scene.color}}">{{scene.avatar}}</view><view><view class="speaker-name">{{scene.speaker}}</view><view class="speaker-role">{{scene.role}}</view></view></view>
-        <view class="story-text">{{quest.text}}</view>
+        <view class="story-text">{{questText}}</view>
         <view class="choices">
-          <button wx:for="{{quest.choices}}" wx:key="index" class="choice" data-index="{{index}}" bindtap="chooseStory"><view class="choice-index">{{index + 1}}</view><view class="choice-body"><view>{{item.text}}</view><view class="choice-hint">{{item.hint}}{{questDone ? ' · 重温收益递减' : ''}}</view></view><text class="choice-arrow">›</text></button>
+          <button wx:for="{{questChoices}}" wx:key="index" class="choice" data-index="{{index}}" bindtap="chooseStory"><view class="choice-index">{{index + 1}}</view><view class="choice-body"><view>{{item.text}}</view><view class="choice-hint">{{item.hint}}{{questDone ? ' · 重温收益递减' : ''}}</view></view><text class="choice-arrow">›</text></button>
         </view>
-        <view class="story-footer">选择没有标准答案，它会塑造独一无二的你</view>
+        <view class="story-footer">{{questFinal ? '选择没有标准答案，它会塑造独一无二的你' : '过程问答 ' + questRound + ' / ' + questRounds + ' · 这一轮只小幅影响属性，最后才结算整段故事'}}</view>
         <view class="panel-link" bindtap="openLog">查看选择日志 ›</view>
       </view>
     </view>
@@ -129,7 +129,7 @@
       <button class="secondary-button" bindtap="closeModal">知道了</button>
     </view>
 
-    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text><view wx:if="{{replyConsequence}}" class="reply-consequence">{{replyConsequence}}</view><view class="reply-cause">已写入因果面板 · 右上角「因」可随时翻看</view><button class="primary-button" bindtap="closeReply">继续校园生活 →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
+    <view wx:if="{{modal === 'reply'}}" class="reply-panel"><view class="reply-spark">✦</view><view class="reply-kicker">{{replyKicker}}</view><view class="reply-title">{{replyTitle}}</view><view class="reply-text">{{reply}}</view><view class="effect-list"><view wx:for="{{effects}}" wx:key="key" class="effect-item {{item.value >= 0 ? 'positive' : 'negative'}}">{{item.name}} {{item.value >= 0 ? '+' : ''}}{{item.value}}</view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text></view><text wx:if="{{replyAffinity}}" class="effect-item {{replyAffinityClass}}">{{replyAffinity}}</text><view wx:if="{{replyConsequence}}" class="reply-consequence">{{replyConsequence}}</view><view class="reply-cause">已写入因果面板 · 右上角「因」可随时翻看</view><button wx:if="{{nextReply}}" class="primary-button" bindtap="nextRound">继续第 {{questRound + 1}} 轮问答 →</button><button wx:else class="primary-button" bindtap="closeReply">继续校园生活 →</button><view class="panel-link" bindtap="openLog">查看选择日志 ›</view></view>
 
     <view wx:if="{{modal === 'cause'}}" class="small-panel cause-panel">
       <view class="panel-close" bindtap="closeModal">×</view>
