@@ -229,12 +229,15 @@ function updateHUD() {
   }
 }
 
+/* 交互只留一条路：走近之后点提示卡片（和「最新版游戏」分支一致，没有右下角圆按钮）。
+   E / 空格键仍可代替点击。 */
 function updateNearby(nearby) {
-  $('#location-toast').classList.toggle('hidden', !nearby);
-  $('#action-button').classList.toggle('active', !!nearby);
-  $('#action-button span').textContent = nearby ? '✦' : '＋';
-  $('#action-button b').textContent = nearby ? (nearby.type === 'npc' ? '聊一聊' : '进入') : '探索';
-  if (nearby) $('#location-toast').innerHTML = `<span>⌖</span><div><b>${nearby.name}</b><small>点击进入，查看可做的任务</small></div>`;
+  const toast = $('#location-toast');
+  toast.classList.toggle('hidden', !nearby);
+  if (!nearby) return;
+  const tip = nearby.type === 'npc' ? '点一下，和他聊两句' : '点击进入，查看可做的任务';
+  toast.setAttribute('aria-label', nearby.type === 'npc' ? `与${nearby.name}交谈` : `进入${nearby.name}`);
+  toast.innerHTML = `<span>⌖</span><div><b>${nearby.name}</b><small>${tip}</small></div>`;
 }
 
 function openModal(name, html, mode = '') {
@@ -544,7 +547,7 @@ function interact() {
 $('#guide-button').addEventListener('click', showGuide);
 $('#log-button').addEventListener('click', showLog);
 $('#cause-button').addEventListener('click', showCause);
-$('#action-button').addEventListener('click', interact);
+
 // 提示卡片上写着「点击进入」，那就得真的能点：与右下角按钮同一个入口
 $('#location-toast').addEventListener('click', interact);
 $('#exam-button').addEventListener('click', showExamIntro);

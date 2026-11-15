@@ -26,7 +26,6 @@
   <view wx:if="{{toastVisible}}" class="toast"><text class="toast-title">{{toastTitle}}</text><text wx:if="{{toastDetail}}" class="toast-detail">{{toastDetail}}</text></view>
 
   <view class="joystick" bindtouchstart="joyStart" bindtouchmove="joyMove" bindtouchend="joyEnd" bindtouchcancel="joyEnd"><view class="joy-ring"></view><view class="joy-arrows">⌃</view><view class="joy-knob" style="transform:translate({{joyX}}px,{{joyY}}px)"></view></view>
-  <view class="action-area"><button class="action-button {{nearby ? 'active' : ''}}" bindtap="interact"><text class="action-icon">{{nearby ? '✦' : '＋'}}</text><text>{{nearby ? (nearby.type === 'npc' ? '聊一聊' : '进入') : '探索'}}</text></button><view class="action-tip">走近发光入口</view></view>
   <button wx:if="{{examReady && !modal}}" class="exam-button" bindtap="showExamIntro">{{examSemesterName || semesterName}}期末考 · 进入考试 →</button>
 
   <view wx:if="{{modal}}" class="modal-mask {{modal === 'scene' || modal === 'quest' || modal === 'reply' || modal === 'request' || modal === 'chain' ? 'story-mask scene-mode' : ''}}">
