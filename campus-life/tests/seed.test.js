@@ -341,6 +341,10 @@ test('铸新种子码必须由调用方给熵源，引擎自己不掷骰子', ()
   assert.throws(() => randomSeedCode(0.5), /熵源/);
   assert.strictEqual(randomSeedCode(() => 0), '222222');
   assert.strictEqual(randomSeedCode(() => 0.5).length, 6);
+  // 熵源真的被用上了：种子应当等于熵乘进种子空间
+  assert.strictEqual(decodeSeed(randomSeedCode(() => 0.5)), Math.floor(0.5 * 32 ** 6));
+  // 不同熵铸出不同的码
+  assert.notStrictEqual(randomSeedCode(() => 0.25), randomSeedCode(() => 0.75));
 });
 
 // ——————————————————————————— 不掷骰子守卫 ———————————————————————————
