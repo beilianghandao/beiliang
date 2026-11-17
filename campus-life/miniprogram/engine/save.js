@@ -73,13 +73,19 @@ function emptyMeta() {
   };
 }
 
+// 计数类字段统一收成非负整数：脏存档里的负数 / NaN / 小数都不该带进周目判定
+function toCount(value) {
+  const num = Math.floor(Number(value));
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
 function normalize(raw) {
   const meta = emptyMeta();
   if (!raw || typeof raw !== 'object') return meta;
   meta.version = Number(raw.version) || 1;
-  meta.playthroughs = Number(raw.playthroughs) || 0;
-  meta.runs = Number(raw.runs) || 0;
-  meta.bestScore = Number(raw.bestScore) || 0;
+  meta.playthroughs = toCount(raw.playthroughs);
+  meta.runs = toCount(raw.runs);
+  meta.bestScore = Math.min(100, toCount(raw.bestScore));
   STAT_KEYS.forEach(key => {
     const value = raw.bestStats ? Number(raw.bestStats[key]) : 0;
     meta.bestStats[key] = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
