@@ -382,6 +382,7 @@ Page({
   },
 
   nextRound() {
+    this.swapAt = Date.now();
     this.dialogueRound = (this.dialogueRound || 0) + 1;
     this.setData(Object.assign({ modal: 'quest', replyConsequence: '', nextReply: false }, this.renderQuestRound()));
     setTimeout(() => this.drawSceneArt(), 80);
@@ -405,6 +406,7 @@ Page({
   backToScene() { this.setData({ modal: 'scene', sceneProgress: this.core.sceneProgress(this.sceneId) }); setTimeout(() => this.drawSceneArt(), 80); },
 
   chooseStory(event) {
+    this.swapAt = Date.now();
     const choiceIndex = Number(event.currentTarget.dataset.index);
     const curQuest = this.core.questAt(this.sceneId, this.questIndex) || { title: '' };
     const curRounds = curQuest.rounds && curQuest.rounds.length ? curQuest.rounds : null;
@@ -464,10 +466,14 @@ Page({
 
   // 选择日志：随时翻看做过哪些选择、影响了什么；关掉后回到打开日志前的地方
   openLog() {
+    // 换面板会改高度，第二下连点很容易点到挪上来的「查看选择日志」，先挡掉
+    if (this.panelLocked()) return;
     this.world.setInput(0, 0);
     this.logReturnModal = this.data.modal;
     this.setData({ modal: 'log', logEntries: buildChoiceLogView(this.core.choiceLog) });
   },
+  panelLocked() { return Date.now() - (this.swapAt || 0) < 300; },
+
   closeLog() {
     const back = this.logReturnModal || '';
     this.logReturnModal = '';

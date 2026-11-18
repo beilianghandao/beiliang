@@ -32,6 +32,9 @@ let seedCode = randomSeedCode(Math.random);
 // 打开「选择日志」前的界面，关掉日志时原样回去
 let logHistory = null;
 let replyHtml = '';
+// 换面板会改高度，「查看选择日志」这类链接可能正好落到刚才选项的位置上，
+// 连点两下就会点穿。每次换面板后短暂屏蔽点击（280ms），正常点击完全无感。
+let swapGuard = 0;
 
 // 哪些 NPC 带着请求找上门（给渲染器画感叹号用）
 function requestNpcMap() {
@@ -239,6 +242,7 @@ function updateNearby(nearby) {
 
 function openModal(name, html, mode = '') {
   modal = name; modalMode = mode; stopArt();
+  swapGuard = performance.now() + 280;
   world.setInput(0, 0); Object.keys(world.keys).forEach(key => world.keys[key] = false);
   modalContent.innerHTML = html;
   modalMask.classList.remove('hidden');
@@ -287,10 +291,11 @@ function showLog() {
 function closeLog() {
   const back = logHistory; logHistory = null;
   if (!back) { closeModal(); updateHUD(); return; }
-  if (back.name === 'scene') showScene(sceneId);
-  else if (back.name === 'quest') showQuest(questIndex, true);
-  else if (back.name === 'reply') showReply();
-  else openModal(back.name, back.html, back.mode);
+  // 原样还原刚才那一屏：之前对 reply 调 showReply() 用的是全局 replyHtml，
+  // 而多轮问答是直接 openModal('reply', ...) 打开的，replyHtml 里是空串，
+  // 结果「回到刚才的地方」回到一块空白面板（看起来像直接掉回地图）。
+  openModal(back.name, back.html, back.mode);
+  if (back.mode === 'scene' && EVENTS[sceneId]) startArt($('#scene-full-art'), EVENTS[sceneId].art);
 }
 
 function showScene(id) {
@@ -551,6 +556,8 @@ $('#exam-button').addEventListener('click', showExamIntro);
 $('#event-button').addEventListener('click', showEvents);
 
 modalContent.addEventListener('click', event => {
+  // 刚换过面板，这一下很可能是上一下的连击，直接吞掉
+  if (performance.now() < swapGuard) return;
   // —— 因果面板的分类标签 ——
   const causeTab = event.target.closest('[data-cause-filter]');
   if (causeTab) { causeFilter = causeTab.dataset.causeFilter; showCause(); return; }
