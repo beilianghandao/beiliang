@@ -202,6 +202,27 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
+/* ============ 选项不显示数值 ============
+   选项下面那行「心态 +1」会让人照着数字选，改成只看方向：
+   1~2 分一个箭头、3~5 两个、6+ 三个，负数对应 ↓。
+   结算之后的效果条、日志、属性卡仍然显示具体数值。 */
+function arrowOf(value) {
+  const v = Number(value) || 0;
+  if (!v) return '·';
+  const steps = Math.abs(v) >= 6 ? 3 : Math.abs(v) >= 3 ? 2 : 1;
+  return (v > 0 ? '↑' : '↓').repeat(steps);
+}
+
+function statLabel(key) {
+  return key === 'energy' ? '精力' : (STAT_META[key] ? STAT_META[key].name : key);
+}
+
+/* 数据里写死的选项提示（如「心态 +1 · 精力 -2」）统一改写成箭头 */
+function softHint(text) {
+  return String(text || '').replace(/([\u4e00-\u9fa5]{2})\s*([+-])\s*(\d+)/g,
+    (m, name, sign, num) => `${name} ${arrowOf(Number(sign + num))}`);
+}
+
 function updateHUD() {
   $('#week-pill').textContent = `${core.semesterName} · 第 ${Math.min(core.week, core.weeksPerSemester)} / ${core.weeksPerSemester} 周`;
   $('#profile-avatar').innerHTML = `<img src="assets/characters/${core.character.avatar}" alt="${core.character.name}">`; $('#profile-avatar').style.background = 'transparent';
@@ -367,7 +388,7 @@ function showQuest(index, keepRound) {
       <h2 class="story-title">${quest.title}</h2>
       <div class="speaker-row"><div class="speaker-avatar" style="background:${scene.color}"><img src="assets/characters/${eventAvatar[sceneId] || 'npc1_avatar.png'}" alt="${scene.speaker}"></div><div><div class="speaker-name">${scene.speaker}</div><div class="speaker-role">${scene.role}</div></div>${hidden ? '<span class="affinity-chip hidden-chip">隐藏事件</span>' : ''}</div>
       <div class="story-text">${round.text}</div>
-      <div class="choices">${round.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${choice.hint}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
+      <div class="choices">${round.choices.map((choice, i) => `<button class="choice" data-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${softHint(choice.hint)}${done ? ' · 重温收益递减' : ''}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
       <div class="story-footer">${footer}</div>
       ${logLink}
     </div></article>`, 'scene');
@@ -378,7 +399,7 @@ function effectChips(applied) {
   return Object.entries(applied || {}).map(([key, value]) => `<span class="effect-item ${value >= 0 ? 'positive' : 'negative'}">${key === 'energy' ? '精力' : STAT_META[key].name} ${value >= 0 ? '+' : ''}${value}</span>`).join('');
 }
 function effectHint(effects) {
-  return Object.keys(effects || {}).map(key => `${key === 'energy' ? '精力' : STAT_META[key].name} ${effects[key] >= 0 ? '+' : ''}${effects[key]}`).join(' · ');
+  return Object.keys(effects || {}).map(key => `${statLabel(key)} ${arrowOf(effects[key])}`).join(' · ');
 }
 
 // NPC 带着请求找上门：答应还是拒绝，由你决定
@@ -395,7 +416,7 @@ function showRequest(request) {
       <h2 class="story-title">${request.title}</h2>
       <div class="speaker-row"><div class="speaker-avatar" style="background:${npc.color}"><img src="assets/characters/${npc.avatar}" alt="${npc.name}"></div><div><div class="speaker-name">${npc.name}</div><div class="speaker-role">${scene.role}</div></div><span class="affinity-chip" style="--tier:${tier.color}">好感 ${core.affinityOf(npc.id)} · ${tier.name}</span></div>
       <div class="story-text">${request.text}</div>
-      <div class="choices">${request.choices.map((choice, i) => `<button class="choice" data-request-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${effectHint(choice.effects)} · 好感 ${choice.affinity >= 0 ? '+' : ''}${choice.affinity}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
+      <div class="choices">${request.choices.map((choice, i) => `<button class="choice" data-request-choice="${i}"><span class="choice-index">${i + 1}</span><span class="choice-body">${choice.text}<span class="choice-hint">${effectHint(choice.effects)} · 好感 ${arrowOf(choice.affinity)}</span></span><span class="choice-arrow">›</span></button>`).join('')}</div>
       <div class="story-footer">关系需要经营 —— 答应还是拒绝，都会被记住</div>
     </div></article>`, 'scene');
   startArt($('#scene-full-art'), scene.art);
@@ -659,28 +680,12 @@ window.addEventListener('keyup', event => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   world.setKey(key, false);
 });
-/* 门口那块「进入XX」是画在画布上的，点它应该直接进去，而不是先走过去再点卡片 */
-function hitDoorLabel(point) {
-  const near = renderer.nearby;
-  if (!near || !near.event) return false;
-  const building = BUILDINGS.find(b => b.id === near.id);
-  if (!building) return false;
-  return point.x > building.doorX - 78 && point.x < building.doorX + 78 &&
-         point.y > building.doorY - 46 && point.y < building.doorY - 6;
-}
-
+/* 画布上不再写「进入XX」，走近之后只亮门口那圈呼吸光圈，
+   真正的入口是底部那张提示卡片（可点，E / 空格同样可以）。 */
 $('#campus').addEventListener('pointerdown', event => {
   if (modal || event.pointerType === 'touch') return;
   const point = renderer.screenToWorld(event.clientX, event.clientY);
-  if (hitDoorLabel(point)) { interact(); return; }
   world.setTarget(point.x, point.y);
-});
-
-// 悬在「进入XX」上时给个手型，让人知道能点
-$('#campus').addEventListener('pointermove', event => {
-  if (modal) return;
-  const point = renderer.screenToWorld(event.clientX, event.clientY);
-  $('#campus').style.cursor = hitDoorLabel(point) ? 'pointer' : 'default';
 });
 const joystick = $('#joystick'); const knob = $('#joy-knob');
 function moveJoystick(event) {

@@ -117,8 +117,22 @@ Page({
     }));
   },
 
+  /* 选项提示不显示数值：1~2 分一个箭头、3~5 两个、6+ 三个 */
+  arrowOf(value) {
+    const v = Number(value) || 0;
+    if (!v) return '·';
+    const steps = Math.abs(v) >= 6 ? 3 : Math.abs(v) >= 3 ? 2 : 1;
+    return (v > 0 ? '↑' : '↓').repeat(steps);
+  },
+  statLabel(key) {
+    return key === 'energy' ? '精力' : (STAT_META[key] ? STAT_META[key].name : key);
+  },
+  softHint(text) {
+    return String(text || '').replace(/([\u4e00-\u9fa5]{2})\s*([+-])\s*(\d+)/g,
+      (m, name, sign, num) => `${name} ${this.arrowOf(Number(sign + num))}`);
+  },
   effectHint(effects) {
-    return Object.keys(effects || {}).map(key => `${key === 'energy' ? '精力' : STAT_META[key].name} ${effects[key] >= 0 ? '+' : ''}${effects[key]}`).join(' · ');
+    return Object.keys(effects || {}).map(key => `${this.statLabel(key)} ${this.arrowOf(effects[key])}`).join(' · ');
   },
 
   showToast(title, detail) {
@@ -221,7 +235,7 @@ Page({
       requestAffinity: `好感 ${this.core.affinityOf(npc.id)} · ${this.core.affinityTierOf(npc.id).name}`,
       requestChoices: request.choices.map(choice => ({
         text: choice.text,
-        hint: `${this.effectHint(choice.effects)} · 好感 ${choice.affinity >= 0 ? '+' : ''}${choice.affinity}`
+        hint: `${this.effectHint(choice.effects)} · 好感 ${this.arrowOf(choice.affinity)}`
       }))
     });
     setTimeout(() => this.drawSceneArt(), 80);
@@ -374,7 +388,7 @@ Page({
     const round = rounds ? rounds[idx] : quest;
     return {
       questText: round.text || '',
-      questChoices: round.choices || [],
+      questChoices: (round.choices || []).map(c => Object.assign({}, c, { hint: this.softHint(c.hint) })),
       questRound: idx + 1,
       questRounds: total,
       questFinal: idx >= total - 1

@@ -1557,16 +1557,12 @@ class CampusRenderer {
     objects.push({ y: 850, draw: () => this.drawFountain(ctx) });
     objects.push({ y: player.y, draw: () => this.drawPerson(ctx, { ...player, ...character }, true, time) });
     objects.sort((a,b) => a.y - b.y).forEach(item => item.draw());
-    // Door markers
+    // Door markers：只在门口留一圈呼吸的发光脚印，不再往画布上写「进入XX」文字
     BUILDINGS.forEach(b => {
       const active = this.nearby && this.nearby.id === b.id;
       const pulse = 1 + Math.sin(time * .005) * .12;
       ctx.strokeStyle = active ? '#fff4a8' : 'rgba(255,248,199,.7)'; ctx.lineWidth = active ? 4 : 2;
       ctx.beginPath(); ctx.ellipse(b.doorX, b.doorY + 13, 23 * pulse, 10 * pulse, 0, 0, TAU); ctx.stroke();
-      if (active) {
-        ctx.fillStyle = 'rgba(43,63,54,.88)'; roundedRect(ctx, b.doorX - 68, b.doorY - 40, 136, 28, 14); ctx.fill();
-        text(ctx, `进入${b.name}`, b.doorX, b.doorY - 26, 13, '#fff8df', 'center', 'bold');
-      }
     });
     this.drawRequestMarkers(ctx, time);
     ctx.restore();
