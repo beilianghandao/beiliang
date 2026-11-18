@@ -28,11 +28,13 @@ fs.writeFileSync(path.join(root, 'web/bundle.js'), output);
    浏览器会把旧的 bundle.js 留在缓存/已打开的标签里，改了代码却还在跑旧逻辑，
    表现就是「明明改了却没生效」。每次构建换一个 ?v=，刷新才会真的拿新代码。 */
 const hash = require('crypto').createHash('md5').update(output).digest('hex').slice(0, 8);
+const cssHash = require('crypto').createHash('md5').update(fs.readFileSync(path.join(root, 'web/styles.css'))).digest('hex').slice(0, 8);
 const indexPath = path.join(root, 'web/index.html');
 let html = fs.readFileSync(indexPath, 'utf8');
 html = html
   .replace(/bundle\.js(\?v=[0-9a-z]+)?/g, `bundle.js?v=${hash}`)
-  .replace(/app\.js(\?v=[0-9a-z]+)?/g, `app.js?v=${hash}`);
+  .replace(/app\.js(\?v=[0-9a-z]+)?/g, `app.js?v=${hash}`)
+  .replace(/styles\.css(\?v=[0-9a-z]+)?/g, `styles.css?v=${cssHash}`);
 fs.writeFileSync(indexPath, html);
 
 console.log(`Built web/bundle.js from shared game modules. (v=${hash})`);
