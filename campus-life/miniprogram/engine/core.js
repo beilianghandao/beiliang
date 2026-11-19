@@ -253,6 +253,25 @@ class GameCore {
   // ============ 关系 ============
 
   affinityOf(npcId) { return this.affinity[npcId] || 0; }
+
+  // 好感度只有一个写入口：上限 100，下限不设 —— 被放鸽子是真的会变冷的
+  addAffinity(npcId, delta) {
+    if (!npcId || !delta) return 0;
+    const next = Math.min(100, (this.affinity[npcId] || 0) + delta);
+    this.affinity[npcId] = next;
+    return next;
+  }
+
+  // 身边有多少人把你当亲近的人（好感度到「亲近」这一档）
+  caredByCount() {
+    return NPCS.filter(npc => this.affinityOf(npc.id) >= 30).length;
+  }
+
+  // 平均好感度：认识的人里，你和每个人处得怎么样
+  avgAffinity() {
+    if (!NPCS.length) return 0;
+    return NPCS.reduce((sum, npc) => sum + this.affinityOf(npc.id), 0) / NPCS.length;
+  }
   affinityTierOf(npcId) { return affinityTier(this.affinityOf(npcId)); }
   npcOfScene(sceneId) { return NPCS.find(n => n.event === sceneId) || null; }
 
@@ -262,7 +281,8 @@ class GameCore {
     const applied = {};
     Object.keys(effects || {}).forEach(key => {
       let value = effects[key];
-      if (key !== 'energy') value = Math.max(1, Math.round(value * factor));
+      // 正向属性至少 +1（重复体验也留一点成长），负向属性照原样扣，不能被翻成 +1
+      if (key !== 'energy') value = value > 0 ? Math.max(1, Math.round(value * factor)) : Math.round(value * factor);
       if (key === 'knowledge' && this.character.id === 'chen' && value > 0 && sceneId && ['library', 'classroom', 'lab'].includes(sceneId)) value += 2;
       if (key === 'social' && this.character.id === 'lin' && value > 0) value += 1;
       // 关系维护到位时，和这个人有关的行动收益更高
@@ -332,12 +352,12 @@ class GameCore {
     if (!choice) return null;
     const applied = this.applyEffects(choice.effects, { npcId: item.npc });
     const delta = choice.affinity || 0;
-    this.affinity[item.npc] = (this.affinity[item.npc] || 0) + delta;
+    this.addAffinity(item.npc, delta);
     this.requests.splice(this.requests.indexOf(item), 1);
     this.resolvedRequests.push(requestId);
     const total = this.affinityOf(item.npc);
     const name = this.npcName(item.npc);
-    this.log.unshift(`你${delta >= 0 ? '答应' : '拒绝了'}「${def.title}」，与${name}的好感 ${delta >= 0 ? '+' : ''}${delta}（当前 ${total}）。`);
+    this.log.unshift(`你${delta >= 0 ? '答应了' : '拒绝了'}「${def.title}」，与${name}的好感 ${delta >= 0 ? '+' : ''}${delta}（当前 ${total}）。`);
     this.pushLog({
       type: 'request', title: def.title, sceneName: name, speaker: name,
       choice: choice.text, effects: applied, tags: effectTags(applied),
@@ -545,13 +565,17 @@ class GameCore {
 
   pickEnding(avgExam) {
     const s = this.stats;
+    const avg = this.avgAffinity();
     const scores = {
       scholar: s.knowledge + avgExam,
       leader: s.social + s.practice,
       maker: s.practice + s.knowledge * 0.5 + avgExam * 0.3,
-      sunshine: s.mood + s.fitness
+      sunshine: s.mood + s.fitness,
+      // 关系路线：身边至少四个人把你当亲近的人，才有资格走这一档；
+      // 之后它和属性结局公平竞争 —— 关系要经营得够深，才能压过属性分
+      beloved: this.caredByCount() >= 4 ? avg * 4 + s.social * 0.5 : 0
     };
-    const order = ['scholar', 'leader', 'maker', 'sunshine'];
+    const order = ['scholar', 'leader', 'maker', 'sunshine', 'beloved'];
     let best = order[0];
     order.forEach(id => { if (scores[id] > scores[best]) best = id; });
     if (scores[best] < 100) return ENDINGS.find(e => e.id === 'ordinary');

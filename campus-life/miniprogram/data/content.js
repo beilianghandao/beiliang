@@ -219,6 +219,7 @@ const ENDINGS = [
   { id: 'leader', title: '让每个人发光的人', tag: '学生领袖', text: '四年里，你从人群中的倾听者变成了连接每个人的人。毕业典礼上，你作为学生代表发言。掌声响起时，你知道自己真正想守护的是什么。', color: '#a57b9c' },
   { id: 'maker', title: '把想法变成现实的人', tag: '创新实践', text: '四年里，你把一个又一个想法变成了真实的作品。毕业展上，你的项目前围满了人。那些失败的深夜，此刻都成了勋章。', color: '#5b9291' },
   { id: 'sunshine', title: '认真生活的追光者', tag: '温暖人生', text: '四年里，你学会了努力，也学会了休息；学会了向前，也学会了照顾身边的人。毕业照里，你的笑容和四年前一样明亮。', color: '#d18d69' },
+  { id: 'beloved', title: '被很多人惦记的人', tag: '众望所归', text: '四年过去，你留下的不是一份漂亮的成绩单，而是一圈愿意在你开口之前就先答应你的人。毕业那天，好几个人不约而同地说：以后有事，记得找我们。', color: '#c07a5a' },
   { id: 'ordinary', title: '正在生长的普通大人', tag: '未来可期', text: '四年过去，你没有成为最耀眼的人，却认真走过了每一天。学位帽抛向天空的那一刻，你知道：人生才刚刚开始。', color: '#7d9275' }
 ];
 
@@ -262,7 +263,7 @@ const REQUESTS = [
     text: '周予安敲开自习室的玻璃门，手里抱着一摞刚打印出来的文献：“这周的读书会临时缺一个人，我第一个想到你。要是有空的话……”他说话时有点不好意思，但你注意到那摞文献已经分好了两份。',
     requires: { affinity: 0, semester: 1 },
     choices: [
-      { text: '答应下来，顺手帮他把文献索引也整理了', reply: '你们在空教室待到很晚。讨论结束后他把最后一篇综述递给你：“下周的分享，你来做吧。”', effects: { knowledge: 5, social: 4, energy: -8 }, affinity: 8 },
+      { text: '答应下来，顺手帮他把文献索引也整理了', reply: '你们在空教室待到很晚。讨论结束后他把最后一篇综述递给你：“下周的分享，你来做吧。”', effects: { knowledge: 5, social: 4, energy: -8 }, affinity: 30 },
       { text: '这周实在排不开，改天再说', reply: '他点点头，把文献放回书包：“没事，你忙你的。”走的时候他回头补了一句“那也挺好的”，语气轻得像怕你听出别的意思。', effects: { mood: -3 }, affinity: -5 }
     ]
   },
@@ -271,7 +272,7 @@ const REQUESTS = [
     text: '周予安在旧书箱前蹲了很久，翻出一本缺了封面的册子：“修复室那边在找懂行的人搭把手。我想到了你——你上次补页的手，稳。”',
     requires: { affinity: 30, semester: 3 },
     choices: [
-      { text: '答应他，去修复室搭把手', reply: '旧纸的气味混着浆糊的清冽。你埋头修了整整两个周末，周予安每次都在旁边递工具。你们没怎么说话，但那摞书又厚了一指。', effects: { practice: 6, knowledge: 4, mood: 3, energy: -10 }, affinity: 10 },
+      { text: '答应他，去修复室搭把手', reply: '旧纸的气味混着浆糊的清冽。你埋头修了整整两个周末，周予安每次都在旁边递工具。你们没怎么说话，但那摞书又厚了一指。', effects: { practice: 6, knowledge: 4, mood: 3, energy: -10 }, affinity: 20 },
       { text: '最近手头太乱，先不接了', reply: '他把册子放回箱子里，合上盖子时比平时用力一点。“理解，理解。”他说。那之后的好几天，他都没再找你。', effects: { mood: -2 }, affinity: -6 }
     ]
   },
@@ -280,7 +281,7 @@ const REQUESTS = [
     text: '唐果半夜十二点发来消息，附了一张示波器的照片：“车能跑了，但刹车那段老抖。明天就是最后一次调试，求你，来不来？不来我也自己调，就是可能调不出来。”',
     requires: { affinity: 0, semester: 2 },
     choices: [
-      { text: '去，熬这一宿', reply: '凌晨四点，终于刹住了。唐果瘫在椅子上，忽然跳起来抱住你：“成了！明年一定要一起上场。”', effects: { practice: 7, energy: -14 }, affinity: 9 },
+      { text: '去，熬这一宿', reply: '凌晨四点，终于刹住了。唐果瘫在椅子上，忽然跳起来抱住你：“成了！明年一定要一起上场。”', effects: { practice: 7, energy: -14 }, affinity: 30 },
       { text: '太晚了，明天还有早课', reply: '他没有多说，只回了个“好的”。第二天路过实验楼，你看见他一个人抱着示波器进去，背影比平时小一号。', effects: { mood: -4 }, affinity: -6 }
     ]
   },
@@ -289,7 +290,7 @@ const REQUESTS = [
     text: '唐果把评委表推到你面前，指了指空着的那一格：“社里的评委都是熟人，我不想让他们手下留情。你来，你不会放过我。”',
     requires: { affinity: 30, semester: 4 },
     choices: [
-      { text: '答应他，认真问每一个问题', reply: '你的第三个问题让他卡了整整十秒。答辩结束后他长出一口气：“谢了。下次换我问别人。”', effects: { practice: 6, social: 5, knowledge: 3 }, affinity: 10 },
+      { text: '答应他，认真问每一个问题', reply: '你的第三个问题让他卡了整整十秒。答辩结束后他长出一口气：“谢了。下次换我问别人。”', effects: { practice: 6, social: 5, knowledge: 3 }, affinity: 20 },
       { text: '自己也是学生，当评委不合适', reply: '他有点意外，随即把表收回去：“那也对。”接下来一整天，他都没再提这件事。', effects: { mood: -3 }, affinity: -7 }
     ]
   },
@@ -298,7 +299,7 @@ const REQUESTS = [
     text: '阿岚在教学楼门口站了很久，看见你才小跑过来：“我听说这个讲座要提前占位……我可以站你旁边吗？我怕一个人进去会不知道该坐在哪。”',
     requires: { affinity: 0, semester: 1 },
     choices: [
-      { text: '带她一起进去，帮她占了个好位置', reply: '讲座结束后她说了整整十分钟她听懂的部分。你注意到她比刚转来时话多了很多。', effects: { social: 6, mood: 4 }, affinity: 9 },
+      { text: '带她一起进去，帮她占了个好位置', reply: '讲座结束后她说了整整十分钟她听懂的部分。你注意到她比刚转来时话多了很多。', effects: { social: 6, mood: 4 }, affinity: 30 },
       { text: '你先进去，她可以自己找位子', reply: '她往后退了半步，说了声“没事”，自己找了个角落坐下。你进场时，她正盯着手机屏幕。', effects: { mood: -2 }, affinity: -6 }
     ]
   },
@@ -307,7 +308,7 @@ const REQUESTS = [
     text: '阿岚攥着简历站在宿舍楼下，手心捏出了折痕：“下午的面试……我想找个人在外面等我。面试完告诉我结果就好，别的不用说。”',
     requires: { affinity: 30, semester: 3 },
     choices: [
-      { text: '陪她去，在外面等她出来', reply: '她出来时脸是红的，把水递给你才发现自己一直在抖。她拿到实习 offer 的消息是晚上十一点发来的，只有一个字：“谢。”', effects: { social: 7, practice: 4, mood: 4, energy: -8 }, affinity: 11 },
+      { text: '陪她去，在外面等她出来', reply: '她出来时脸是红的，把水递给你才发现自己一直在抖。她拿到实习 offer 的消息是晚上十一点发来的，只有一个字：“谢。”', effects: { social: 7, practice: 4, mood: 4, energy: -8 }, affinity: 20 },
       { text: '那天你有事，实在陪不了', reply: '她说“没事的”，然后自己去了。晚上她发来面试通过的截图，多打了一行：“谢谢你说的加油。”但你记得自己并没有说过。', effects: { mood: -4 }, affinity: -8 }
     ]
   },
@@ -316,7 +317,7 @@ const REQUESTS = [
     text: '宋小满把书包往桌上一放，压低声音：“阶梯教室只剩最后一排了，你先去占座，我去买瓶水，马上回来！”说完人已经跑出了门。',
     requires: { affinity: 0, semester: 1 },
     choices: [
-      { text: '占好座，等她回来', reply: '她回来时水洒了半瓶，笑着把纸巾递给你：“谢啦，我欠你一顿。”这顿饭后来真的吃了，就在食堂二楼。', effects: { social: 5, mood: 3 }, affinity: 7 },
+      { text: '占好座，等她回来', reply: '她回来时水洒了半瓶，笑着把纸巾递给你：“谢啦，我欠你一顿。”这顿饭后来真的吃了，就在食堂二楼。', effects: { social: 5, mood: 3 }, affinity: 30 },
       { text: '位置留给别人了，你坐到了后排', reply: '她回来的时候在门口愣了两秒，然后若无其事地坐到最后一排。下课你们谁都没提这件事。', effects: { mood: -1 }, affinity: -4 }
     ]
   },
@@ -325,7 +326,7 @@ const REQUESTS = [
     text: '熄灯前的卧谈会，宋小满忽然问：“你周末回老家吗？我妈问我学校的事，我一张嘴就‘还行’……其实我也不知道该怎么讲。你要是也回去，我可以跟我一起想想怎么说。”',
     requires: { affinity: 20, semester: 2 },
     choices: [
-      { text: '陪她一起想，认真聊了整晚', reply: '你们轮流说着说着就天亮了。她说：“原来不是我不知道怎么讲，是我没敢真的讲。”', effects: { mood: 6, social: 4 }, affinity: 8 },
+      { text: '陪她一起想，认真聊了整晚', reply: '你们轮流说着说着就天亮了。她说：“原来不是我不知道怎么讲，是我没敢真的讲。”', effects: { mood: 6, social: 4 }, affinity: 20 },
       { text: '你说你也还没想好', reply: '“那算了。”她翻了个身。宿舍安静下来之后，你听见对面床铺轻微的翻身声，一整晚。', effects: { mood: -2 }, affinity: -5 }
     ]
   },
@@ -334,17 +335,44 @@ const REQUESTS = [
     text: '顾星野把流程表卷成筒敲了敲桌面：“节目单上有一个空位，原本的主角家里有事来不了。我不想随便拉个人凑数——你来，这台戏你撑得住。”',
     requires: { affinity: 0, semester: 2 },
     choices: [
-      { text: '接下这个角色，把整台节目扛下来', reply: '彩排到深夜，散场时后台只剩你们两个人和一地荧光棒。他说：“我就知道没找错人。”', effects: { practice: 6, social: 5, energy: -10 }, affinity: 9 },
+      { text: '接下这个角色，把整台节目扛下来', reply: '彩排到深夜，散场时后台只剩你们两个人和一地荧光棒。他说：“我就知道没找错人。”', effects: { practice: 6, social: 5, energy: -10 }, affinity: 30 },
       { text: '推掉这个位置，你不适合站那种舞台', reply: '他点点头，把流程表上的名字划掉，换了个不相干的人。“也行，”他说，“反正总得有人上。”', effects: { mood: -3 }, affinity: -5 }
     ]
   },
   {
     id: 'req-npc7-b', npc: 'npc7', title: '学生会换届，想推荐你',
     text: '顾星野把一份竞选表推过来，笔已经拧开了：“换届名单上我想写你的名字。不是因为我需要一个能干的帮手——是因为这四年的事，我看着你一件一件做成过。”',
-    requires: { affinity: 40, semester: 4 },
+    requires: { affinity: 30, semester: 4 },
     choices: [
-      { text: '在竞选表上签下自己的名字', reply: '接下来一个月，你学会了怎么在会议里推进事情，也学会了怎么在失败之后不下台。那年你们拿下了社团年度评选。', effects: { social: 8, practice: 5, mood: 4, energy: -12 }, affinity: 12 },
+      { text: '在竞选表上签下自己的名字', reply: '接下来一个月，你学会了怎么在会议里推进事情，也学会了怎么在失败之后不下台。那年你们拿下了社团年度评选。', effects: { social: 8, practice: 5, mood: 4, energy: -12 }, affinity: 20 },
       { text: '你只想当个普通的同学', reply: '他把笔盖盖好，点了点头：“也好，你本来就该做你自己。”可那之后，他再没提过类似的话。', effects: { mood: -4 }, affinity: -8 }
+    ]
+  },
+  {
+    id: 'req-npc2-a', npc: 'npc2', title: '这节课，我想请你第一个回答',
+    text: '许老师在讲台边整理教案，看见你进来，把一沓纸推到桌角：“这学期我多带了一门课，班上安静得能听见翻书声。上次你举手的样子我记住了——这节课，我想请你第一个回答。答错也没关系，我只是想让这间教室先有个声音。”',
+    requires: { affinity: 0, semester: 1 },
+    choices: [
+      { text: '站起来，把那个不太成熟的答案说完', reply: '你答得磕磕巴巴，他却在讲台上认真地点了点头：“不完整，但你在想。”那节课之后，教室里的沉默少了一点。', effects: { knowledge: 4, social: 3, energy: -4 }, affinity: 30 },
+      { text: '找个角落坐下，等别人先开口', reply: '“那下次吧。”他笑了笑，把那沓纸收了回去。下一次上课，你听见他叫的是另一个名字。', effects: { mood: -2 }, affinity: -6 }
+    ]
+  },
+  {
+    id: 'req-npc6-a', npc: 'npc6', title: '周末加练，缺你一个',
+    text: '陆教练在器材室门口拦住你，递过来一双旧跑鞋：“周末加练，来的人不够。我不要求你跑快，只要求你跑完——说实话，我更想要的是有人能一直在这儿。”',
+    requires: { affinity: 0, semester: 1 },
+    choices: [
+      { text: '接下跑鞋，周末去跑完那几圈', reply: '那天的跑道很长，风也很大。冲线之后他拍着你的肩说：“下周末还来吗？”你点了头。', effects: { fitness: 6, mood: 3, energy: -10 }, affinity: 30 },
+      { text: '这周实在累，改天再跑', reply: '“行。”他收回跑鞋，转身继续擦器械。周末的体育馆里，好像一直是那个节奏。', effects: { mood: -3 }, affinity: -5 }
+    ]
+  },
+  {
+    id: 'req-npc8-a', npc: 'npc8', title: '湖边有封信，想托你转交',
+    text: '湖边的信使把一封没有署名的信递过来，信封边缘被水汽浸软了一点：“这封信我送了很多年，一直没送到该去的地方。这次想托你——不是因为你特别，是因为你愿意接。”',
+    requires: { affinity: 0, semester: 2 },
+    choices: [
+      { text: '把信收进书包，答应替他送到', reply: '你把信收进书包，那天湖边的风一直没停。后来你才知道，接下过它的人一共有三个，而你是最后一个。', effects: { mood: 4, practice: 3, energy: -2 }, affinity: 30 },
+      { text: '这封信太重了，你接不住', reply: '“没关系。”他把信收回怀里，重新朝湖心岛的方向走。走出去几步，他停下来，没有回头。', effects: { mood: -2 }, affinity: -6 }
     ]
   }
 ];
