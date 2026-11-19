@@ -18,26 +18,38 @@ const { suite, runAll, exportCaseList, exportDefects, openIssue, closeIssue } = 
 const SEED = 'K7M2QX';
 
 // —— 缺陷台账：把已知的坑登记在册，用例失败时按编号关联问题单 ——
-// ISSUE-SEED-001 存档序列化把内部状态引用漏出去
+// 问题单已提到 GitHub：https://github.com/beilianghandao/beiliang/issues
+// ISSUE-SEED-001 存档序列化把内部状态引用漏出去（GitHub #25）
 openIssue('ISSUE-SEED-001', {
   title: 'serialize() 返回的是引擎内部状态的引用',
   level: 4,
   cause: 'serialize() 直接返回 this.stats / this.choiceLog / this.completed 等引用，调用方改动返回值会污染当前这局。现无调用方这样干（落盘走 JSON.stringify 会快照），一旦有人直接改返回值即触发。',
-  foundBy: '用例 campus_seed_018 复核时发现'
+  foundBy: '用例 campus_seed_043 复现时发现',
+  url: 'https://github.com/beilianghandao/beiliang/issues/25'
 });
-// ISSUE-SEED-002 存档缺字段时还原会抛 TypeError
+// ISSUE-SEED-002 存档缺字段时还原会抛 TypeError（GitHub #26）
 openIssue('ISSUE-SEED-002', {
   title: 'restore() 对缺字段的存档没有兜底',
   level: 3,
   cause: 'restore() 直接对 state.choiceLog.map / state.completed.slice 取值，存档缺这两个字段时抛 TypeError；缺 stats 时不报错，却会静默得到一份空属性表。脏存档或跨版本存档会打不开。',
-  foundBy: '用例 campus_seed_020 复核时发现'
+  foundBy: '用例 campus_seed_044 与 campus_seed_045 复现时发现',
+  url: 'https://github.com/beilianghandao/beiliang/issues/26'
 });
-// ISSUE-SEED-003 开考之后存档，再原会重抽一套考题
+// ISSUE-SEED-003 开考之后存档，还原会重抽一套考题（GitHub #27）
 openIssue('ISSUE-SEED-003', {
   title: '存档点在开考之后时，还原会重新抽一套考题',
   level: 4,
   cause: 'serialize() 只记了 rngState，没有记 currentExam；还原后 startExam() 会接着往下抽，抽到的不是存档时那一套。当前存档点都落在开考前，触发不到；一旦接上读档功能即为坑。',
-  foundBy: '用例 campus_seed_022 复核时发现'
+  foundBy: '用例 campus_seed_024 复核时发现',
+  url: 'https://github.com/beilianghandao/beiliang/issues/27'
+});
+// ISSUE-SEED-004 存档写了从不读回，restore() 从未被界面调用（GitHub #24）
+openIssue('ISSUE-SEED-004', {
+  title: '存档写了从不读回：restore() 从未被界面调用',
+  level: 2,
+  cause: '小程序每次选择后写入 campus-progress 却从不读回，web 端完全没用 localStorage，两端都没有调用 GameCore.restore()。存档是死数据，退出即丢；种子码「复现同学那一局」只在测试里成立。接通读档后 ISSUE-SEED-002 与 ISSUE-SEED-003 才会真正暴露，建议一起排期。',
+  foundBy: '用例 campus_seed_047 复现时发现',
+  url: 'https://github.com/beilianghandao/beiliang/issues/24'
 });
 
 suite('campus_seed', '种子码与确定性序列', [
@@ -729,6 +741,24 @@ suite('campus_seed', '种子码与确定性序列', [
       const broken = { characterId: 'lin', seedCode: SEED, completed: [], visited: {}, examScores: [], choiceLog: [] };
       const restored = GameCore.restore(broken);
       assert.ok(Object.keys(restored.stats).length > 0, '存档缺属性表时还原后属性被清空');
+    }
+  },
+  {
+    title: '复现存档未接线_界面层检索还原调用_零命中',
+    type: '功能交互测试',
+    level: 2,
+    defect: 'ISSUE-SEED-004',
+    pre: '小程序页面脚本与 web 端脚本均可读取，引擎具备还原能力',
+    steps: ['遍历小程序页面脚本与 web 端脚本', '检索其中对还原方法的调用', '统计命中文件数'],
+    expect: '命中文件数大于零，界面层应当调用还原方法把存档读回来',
+    run: () => {
+      const targets = [
+        path.join(__dirname, '../miniprogram/pages/game/game.js'),
+        path.join(__dirname, '../miniprogram/pages/select/select.js'),
+        path.join(__dirname, '../web/app.js')
+      ];
+      const hits = targets.filter(file => /GameCore\.restore|\.restore\(/.test(fs.readFileSync(file, 'utf8')));
+      assert.ok(hits.length > 0, '界面层没有调用还原方法，存档写了从不读回');
     }
   },
   {

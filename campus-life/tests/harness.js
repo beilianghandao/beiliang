@@ -74,6 +74,7 @@ function openIssue(id, detail) {
     status: detail.status || 'open',      // open / fixed / closed
     owner: detail.owner || '',
     foundBy: detail.foundBy || '',
+    url: detail.url || '',                // GitHub 等问题系统里的问题单链接
     cases: detail.cases || []
   });
   return id;
@@ -223,7 +224,11 @@ function exportCaseList(results) {
     const issue = r.defect ? defects.get(r.defect) : [...defects.values()].find(d => d.cases.includes(r.id));
     const steps = r.steps.map((s, i) => `${i + 1}、${s}`).join('<br>');
     const actual = r.status === 'PASS' ? 'PASS' : r.status === '已知缺陷' ? `FAIL（${r.defect}）` : r.status;
-    return `| ${r.id} | ${r.type} | ${r.level} | ${r.title} | ${r.pre} | ${steps} | ${r.expect} | ${actual} | ${issue ? issue.id : ''} |`;
+    // 问题单编号列同时给出内部编号与 GitHub 问题单号，两边对得上
+    const ticket = issue
+      ? (issue.url ? `[${issue.id}](${issue.url})` : issue.id)
+      : '';
+    return `| ${r.id} | ${r.type} | ${r.level} | ${r.title} | ${r.pre} | ${steps} | ${r.expect} | ${actual} | ${ticket} |`;
   });
   return [head, sep, ...rows].join('\n');
 }
@@ -231,10 +236,10 @@ function exportCaseList(results) {
 /** 缺陷台账导出 */
 function exportDefects() {
   if (!defects.size) return '（无缺陷记录）';
-  const head = '| 问题单编号 | 标题 | 等级 | 状态 | 关联用例 | 原因 | 修复方式 |';
-  const sep = '| --- | --- | --- | --- | --- | --- | --- |';
+  const head = '| 问题单编号 | 标题 | 等级 | 状态 | 关联用例 | 问题单链接 | 原因 | 修复方式 |';
+  const sep = '| --- | --- | --- | --- | --- | --- | --- | --- |';
   const rows = [...defects.values()].map(d =>
-    `| ${d.id} | ${d.title} | ${d.level} | ${d.status} | ${d.cases.join(' ')} | ${d.cause} | ${d.fix || ''} |`);
+    `| ${d.id} | ${d.title} | ${d.level} | ${d.status} | ${d.cases.join(' ')} | ${d.url ? `[链接](${d.url})` : ''} | ${d.cause} | ${d.fix || ''} |`);
   return [head, sep, ...rows].join('\n');
 }
 

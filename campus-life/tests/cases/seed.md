@@ -27,7 +27,7 @@
 | campus_seed_021 | 一致性测试 | 3 | 复现存档往返_三十轮选择序列_往返结果一致 | 引擎具备八条场景线的任务表与十颗种子码 | 1、按固定序列执行三十轮任务选择<br>2、序列化后还原<br>3、比对还原前后的序列化结果与属性与日志条数 | 三十轮的还原结果与原存档逐字段一致，属性与日志条数也一致 | PASS |  |
 | campus_seed_022 | 一致性测试 | 2 | 续玩还原存档_与原局并行_考题成绩一致 | 引擎已完成一次任务选择，并已序列化 | 1、用存档还原出新的引擎<br>2、让原局与还原局各自推进到开考<br>3、各自抽取考题并作答<br>4、比对两边的考题与成绩 | 两边的考题顺序与学期成绩一致 | PASS |  |
 | campus_seed_023 | 功能正确性测试 | 2 | 复算毕业结局_还原后的存档_结局编号一致 | 引擎已跑完八个学期并产生结局 | 1、序列化这一局<br>2、用存档还原出新的引擎<br>3、用还原局的成绩均值复算结局<br>4、比对两边的结局编号 | 复算出的结局编号与原局的结局编号一致 | PASS |  |
-| campus_seed_024 | 一致性测试 | 4 | 记录存档边界_开考之后存档_考题重新抽取 | 引擎已推进到可开考的状态，存档只记了序列状态 | 1、抽出一次考题<br>2、序列化当前对局<br>3、用存档还原出新的引擎<br>4、让还原局重新开考并抽题 | 还原局抽到的考题与存档前抽到的不一致，存档点须落在开考前 | PASS | ISSUE-SEED-003 |
+| campus_seed_024 | 一致性测试 | 4 | 记录存档边界_开考之后存档_考题重新抽取 | 引擎已推进到可开考的状态，存档只记了序列状态 | 1、抽出一次考题<br>2、序列化当前对局<br>3、用存档还原出新的引擎<br>4、让还原局重新开考并抽题 | 还原局抽到的考题与存档前抽到的不一致，存档点须落在开考前 | PASS | [ISSUE-SEED-003](https://github.com/beilianghandao/beiliang/issues/27) |
 | campus_seed_025 | 功能正确性测试 | 2 | 记录选择日志_完成一次选择_条数与学期周次 | 引擎以 K7M2QX 初始化，完成一次图书馆任务选择 | 1、读取选择日志的条数<br>2、读取首条日志的学期<br>3、读取首条日志的周次 | 日志有一条，学期为一，周次为一 | PASS |  |
 | campus_seed_026 | 功能正确性测试 | 2 | 记录选择日志_完成一次选择_场景任务与选项文案 | 引擎以 K7M2QX 初始化，完成一次图书馆任务选择 | 1、读取首条日志的场景标识<br>2、读取首条日志的场景名<br>3、读取首条日志的任务标题与选项文案 | 场景标识为 library，场景名为图书馆，任务标题与选项文案均非空 | PASS |  |
 | campus_seed_027 | 功能正确性测试 | 2 | 记录选择日志_完成一次选择_属性变化与重复标识 | 引擎以 K7M2QX 初始化，完成一次图书馆任务选择 | 1、读取首条日志的属性变化键值对数量<br>2、读取首条日志的重复标识 | 属性变化键值对数量大于零，重复标识为假 | PASS |  |
@@ -46,15 +46,17 @@
 | campus_seed_040 | 功能正确性测试 | 2 | 铸种子码_熵源取零与取半_返回六位种子码 | 数据层 randomSeedCode 接收一个返回零到一之间数值的熵源函数 | 1、以返回零的熵源函数调用 randomSeedCode<br>2、以返回半的熵源函数调用 randomSeedCode | 前一次返回种子码 222222，后一次返回的种子码长度为六位 | PASS |  |
 | campus_seed_041 | 一致性测试 | 2 | 扫描引擎与数据层_非确定性来源_零命中 | 引擎目录与数据目录下的脚本文件可读取 | 1、遍历引擎目录与数据目录下的脚本文件<br>2、逐个文件检索 Math.random 与 Date.now 与 new Date | 两个目录下的脚本文件都不含这三处非确定性来源 | PASS |  |
 | campus_seed_042 | 功能交互测试 | 3 | 校验界面熵源_应用入口与选角页_以Mathrandom作熵 | 小程序 app.js 与选角页均可读取 | 1、检索 app.js 中的熵源用法<br>2、检索选角页中的熵源用法 | 两个文件都以 Math.random 作为熵源 | PASS |  |
-| campus_seed_043 | 功能正确性测试 | 4 | 复现存档引用_序列化后改动返回值_引擎状态被改动 | 引擎已完成一次任务选择 | 1、序列化当前对局<br>2、改动序列化结果中的属性取值<br>3、读取引擎当前的属性取值 | 引擎当前的属性取值不随序列化结果改动，序列化结果应是独立副本 | FAIL（ISSUE-SEED-001） | ISSUE-SEED-001 |
-| campus_seed_044 | 容错容灾测试 | 3 | 复现脏存档_缺选择日志字段_还原抛出异常 | 存档包含种子码但缺少选择日志字段 | 1、构造一份缺选择日志字段的存档<br>2、用该存档还原引擎 | 还原过程不抛出异常，缺字段回退到初始值 | FAIL（ISSUE-SEED-002） | ISSUE-SEED-002 |
-| campus_seed_045 | 容错容灾测试 | 3 | 复现脏存档_缺属性表_还原后属性被清空 | 存档包含种子码但缺少属性表字段 | 1、构造一份缺属性表字段的存档<br>2、用该存档还原引擎<br>3、读取还原后引擎的属性表 | 还原后属性表仍为角色初始值，不是一张空表 | FAIL（ISSUE-SEED-002） | ISSUE-SEED-002 |
-| campus_seed_046 | 功能交互测试 | 3 | 校验界面熵源_造出的种子码_引擎能够接受 | 数据层 randomSeedCode 与引擎均可调用 | 1、用固定熵造一颗种子码<br>2、解码该种子码<br>3、用该种子码构造引擎 | 解码结果不为空，构造引擎时不抛出异常 | PASS |  |
+| campus_seed_043 | 功能正确性测试 | 4 | 复现存档引用_序列化后改动返回值_引擎状态被改动 | 引擎已完成一次任务选择 | 1、序列化当前对局<br>2、改动序列化结果中的属性取值<br>3、读取引擎当前的属性取值 | 引擎当前的属性取值不随序列化结果改动，序列化结果应是独立副本 | FAIL（ISSUE-SEED-001） | [ISSUE-SEED-001](https://github.com/beilianghandao/beiliang/issues/25) |
+| campus_seed_044 | 容错容灾测试 | 3 | 复现脏存档_缺选择日志字段_还原抛出异常 | 存档包含种子码但缺少选择日志字段 | 1、构造一份缺选择日志字段的存档<br>2、用该存档还原引擎 | 还原过程不抛出异常，缺字段回退到初始值 | FAIL（ISSUE-SEED-002） | [ISSUE-SEED-002](https://github.com/beilianghandao/beiliang/issues/26) |
+| campus_seed_045 | 容错容灾测试 | 3 | 复现脏存档_缺属性表_还原后属性被清空 | 存档包含种子码但缺少属性表字段 | 1、构造一份缺属性表字段的存档<br>2、用该存档还原引擎<br>3、读取还原后引擎的属性表 | 还原后属性表仍为角色初始值，不是一张空表 | FAIL（ISSUE-SEED-002） | [ISSUE-SEED-002](https://github.com/beilianghandao/beiliang/issues/26) |
+| campus_seed_046 | 功能交互测试 | 2 | 复现存档未接线_界面层检索还原调用_零命中 | 小程序页面脚本与 web 端脚本均可读取，引擎具备还原能力 | 1、遍历小程序页面脚本与 web 端脚本<br>2、检索其中对还原方法的调用<br>3、统计命中文件数 | 命中文件数大于零，界面层应当调用还原方法把存档读回来 | FAIL（ISSUE-SEED-004） | [ISSUE-SEED-004](https://github.com/beilianghandao/beiliang/issues/24) |
+| campus_seed_047 | 功能交互测试 | 3 | 校验界面熵源_造出的种子码_引擎能够接受 | 数据层 randomSeedCode 与引擎均可调用 | 1、用固定熵造一颗种子码<br>2、解码该种子码<br>3、用该种子码构造引擎 | 解码结果不为空，构造引擎时不抛出异常 | PASS |  |
 
 ## 缺陷台账
 
-| 问题单编号 | 标题 | 等级 | 状态 | 关联用例 | 原因 | 修复方式 |
-| --- | --- | --- | --- | --- | --- | --- |
-| ISSUE-SEED-001 | serialize() 返回的是引擎内部状态的引用 | 4 | open | campus_seed_043 | serialize() 直接返回 this.stats / this.choiceLog / this.completed 等引用，调用方改动返回值会污染当前这局。现无调用方这样干（落盘走 JSON.stringify 会快照），一旦有人直接改返回值即触发。 |  |
-| ISSUE-SEED-002 | restore() 对缺字段的存档没有兜底 | 3 | open | campus_seed_044 campus_seed_045 | restore() 直接对 state.choiceLog.map / state.completed.slice 取值，存档缺这两个字段时抛 TypeError；缺 stats 时不报错，却会静默得到一份空属性表。脏存档或跨版本存档会打不开。 |  |
-| ISSUE-SEED-003 | 存档点在开考之后时，还原会重新抽一套考题 | 4 | open | campus_seed_024 | serialize() 只记了 rngState，没有记 currentExam；还原后 startExam() 会接着往下抽，抽到的不是存档时那一套。当前存档点都落在开考前，触发不到；一旦接上读档功能即为坑。 |  |
+| 问题单编号 | 标题 | 等级 | 状态 | 关联用例 | 问题单链接 | 原因 | 修复方式 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ISSUE-SEED-001 | serialize() 返回的是引擎内部状态的引用 | 4 | open | campus_seed_043 | [链接](https://github.com/beilianghandao/beiliang/issues/25) | serialize() 直接返回 this.stats / this.choiceLog / this.completed 等引用，调用方改动返回值会污染当前这局。现无调用方这样干（落盘走 JSON.stringify 会快照），一旦有人直接改返回值即触发。 |  |
+| ISSUE-SEED-002 | restore() 对缺字段的存档没有兜底 | 3 | open | campus_seed_044 campus_seed_045 | [链接](https://github.com/beilianghandao/beiliang/issues/26) | restore() 直接对 state.choiceLog.map / state.completed.slice 取值，存档缺这两个字段时抛 TypeError；缺 stats 时不报错，却会静默得到一份空属性表。脏存档或跨版本存档会打不开。 |  |
+| ISSUE-SEED-003 | 存档点在开考之后时，还原会重新抽一套考题 | 4 | open | campus_seed_024 | [链接](https://github.com/beilianghandao/beiliang/issues/27) | serialize() 只记了 rngState，没有记 currentExam；还原后 startExam() 会接着往下抽，抽到的不是存档时那一套。当前存档点都落在开考前，触发不到；一旦接上读档功能即为坑。 |  |
+| ISSUE-SEED-004 | 存档写了从不读回：restore() 从未被界面调用 | 2 | open | campus_seed_046 | [链接](https://github.com/beilianghandao/beiliang/issues/24) | 小程序每次选择后写入 campus-progress 却从不读回，web 端完全没用 localStorage，两端都没有调用 GameCore.restore()。存档是死数据，退出即丢；种子码「复现同学那一局」只在测试里成立。接通读档后 ISSUE-SEED-002 与 ISSUE-SEED-003 才会真正暴露，建议一起排期。 |  |
