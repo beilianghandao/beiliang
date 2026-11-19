@@ -1029,11 +1029,125 @@ const EXTRA_ENDINGS = [
 module.exports = { EXTRA_QUESTS, EXTRA_ENDINGS, ENDING_RULES, buildDialogueRounds };
 
 };
+modules['achievements'] = function(module, exports, require) {
+// 成就系统：全部成就在此声明，判定函数均为纯函数（只读快照）。
+// 快照字段由 engine/core.js 的 achievementSnapshot() 提供，便于单测与双端复用。
+
+const ACHIEVEMENT_CATEGORIES = {
+  story: { name: '图鉴', color: '#a3845c' },
+  growth: { name: '成长', color: '#5d7ea8' },
+  exam: { name: '学业', color: '#5b9272' },
+  career: { name: '生涯', color: '#ae7b9f' },
+  secret: { name: '隐藏', color: '#8a6bd1' }
+};
+
+// tier: bronze 铜 / silver 银 / gold 金
+// hidden: true 为隐藏成就——图鉴中只显示「？？？」，解锁后才显形
+const ACHIEVEMENTS = [
+  // ---- 图鉴：故事收集与场景探索 ----
+  { id: 'first-story', cat: 'story', icon: '启', tier: 'bronze', name: '初次启程', desc: '完成第一段校园故事', check: s => s.completedCount >= 1, progress: s => [s.completedCount, 1] },
+  { id: 'story-16', cat: 'story', icon: '书', tier: 'bronze', name: '故事收集者', desc: '完成 16 段校园故事', check: s => s.completedCount >= 16, progress: s => [s.completedCount, 16] },
+  { id: 'story-32', cat: 'story', icon: '藏', tier: 'silver', name: '校园通', desc: '完成 32 段校园故事', check: s => s.completedCount >= 32, progress: s => [s.completedCount, 32] },
+  { id: 'story-48', cat: 'story', icon: '档', tier: 'silver', name: '青梧档案馆', desc: '完成 48 段校园故事', check: s => s.completedCount >= 48, progress: s => [s.completedCount, 48] },
+  { id: 'story-all', cat: 'story', icon: '鉴', tier: 'gold', name: '图鉴全收', desc: '集齐全部 64 段校园故事', check: s => s.completedCount >= s.totalStories, progress: s => [s.completedCount, s.totalStories] },
+  { id: 'all-scenes', cat: 'story', icon: '迹', tier: 'silver', name: '踏遍青梧', desc: '在全部 8 个场景留下足迹', check: s => s.visitedScenes >= s.totalScenes, progress: s => [s.visitedScenes, s.totalScenes] },
+  { id: 'scene-master', cat: 'story', icon: '专', tier: 'silver', name: '场景大师', desc: '把某一个场景的 8 个任务全部做完', check: s => s.sceneMaxCompleted >= s.sceneQuestTarget, progress: s => [s.sceneMaxCompleted, s.sceneQuestTarget] },
+  { id: 'revisit', cat: 'story', icon: '温', tier: 'bronze', name: '重温旧事', desc: '重温一段已完成的故事', check: s => s.repeatedQuests >= 1, progress: s => [s.repeatedQuests, 1] },
+  { id: 'regular', cat: 'story', icon: '熟', tier: 'silver', name: '故事常客', desc: '同一段故事体验 3 次', check: s => s.maxVisited >= 3, progress: s => [s.maxVisited, 3] },
+  { id: 'archaeologist', cat: 'story', icon: '古', tier: 'gold', name: '剧情考古学家', desc: '把同一段故事反复体验 5 次', check: s => s.maxVisited >= 5, progress: s => [s.maxVisited, 5] },
+
+  // ---- 成长：属性与精力 ----
+  { id: 'stat-root', cat: 'growth', icon: '根', tier: 'bronze', name: '站稳脚跟', desc: '五项属性全部达到 40', check: s => s.statKeys.every(key => s.stats[key] >= 40), progress: s => [s.statKeys.filter(key => s.stats[key] >= 40).length, s.statKeys.length] },
+  { id: 'stat-knowledge', cat: 'growth', icon: '知', tier: 'silver', name: '饱学之士', desc: '学识达到 80', check: s => s.stats.knowledge >= 80, progress: s => [s.stats.knowledge, 80] },
+  { id: 'stat-fitness', cat: 'growth', icon: '体', tier: 'silver', name: '晨光跑者', desc: '体魄达到 80', check: s => s.stats.fitness >= 80, progress: s => [s.stats.fitness, 80] },
+  { id: 'stat-mood', cat: 'growth', icon: '心', tier: 'silver', name: '内核稳定', desc: '心态达到 80', check: s => s.stats.mood >= 80, progress: s => [s.stats.mood, 80] },
+  { id: 'stat-social', cat: 'growth', icon: '友', tier: 'silver', name: '人缘满座', desc: '人缘达到 80', check: s => s.stats.social >= 80, progress: s => [s.stats.social, 80] },
+  { id: 'stat-practice', cat: 'growth', icon: '行', tier: 'silver', name: '知行合一', desc: '实践达到 80', check: s => s.stats.practice >= 80, progress: s => [s.stats.practice, 80] },
+  { id: 'stat-max', cat: 'growth', icon: '峰', tier: 'gold', name: '登峰造极', desc: '任意一项属性达到满值 100', check: s => s.statKeys.some(key => s.stats[key] >= 100), progress: s => [Math.max(...s.statKeys.map(key => s.stats[key])), 100] },
+  { id: 'all-round', cat: 'growth', icon: '园', tier: 'gold', name: '全面开花', desc: '五项属性全部达到 70', check: s => s.statKeys.every(key => s.stats[key] >= 70), progress: s => [s.statKeys.filter(key => s.stats[key] >= 70).length, s.statKeys.length] },
+  { id: 'full-energy', cat: 'growth', icon: '满', tier: 'bronze', name: '精力管理大师', desc: '精力恢复到满值 100', check: s => s.energy >= 100, progress: s => [s.energy, 100] },
+  { id: 'low-energy', cat: 'growth', icon: '燃', tier: 'bronze', name: '极限运转', desc: '精力跌到 20 以下仍坚持行动', check: s => s.energyLowReached, progress: s => [s.energyLowReached ? 1 : 0, 1] },
+
+  // ---- 学业：考试表现 ----
+  { id: 'exam-perfect', cat: 'exam', icon: '满', tier: 'silver', name: '全对答卷', desc: '一次期末考 5 题全部答对', check: s => s.perfectExams >= 1, progress: s => [s.perfectExams, 1] },
+  { id: 'exam-first-80', cat: 'exam', icon: '捷', tier: 'silver', name: '首战告捷', desc: '第一场期末考就拿到 80 分以上', check: s => s.examScores.length >= 1 && s.examScores[0] >= 80, progress: s => [s.examScores[0] || 0, 80] },
+  { id: 'exam-perfect-3', cat: 'exam', icon: '神', tier: 'gold', name: '考神附体', desc: '累计三场期末考全部答对', check: s => s.perfectExams >= 3, progress: s => [s.perfectExams, 3] },
+  { id: 'exam-90', cat: 'exam', icon: '优', tier: 'gold', name: '高分通过', desc: '一次期末考取得 90 分以上', check: s => s.bestExamScore >= 90, progress: s => [s.bestExamScore, 90] },
+  { id: 'exam-no-timeout', cat: 'exam', icon: '速', tier: 'bronze', name: '从容应考', desc: '完成一整场期末考且没有超时题', check: s => s.calmExams >= 1, progress: s => [s.calmExams, 1] },
+  { id: 'exam-rise', cat: 'exam', icon: '梯', tier: 'silver', name: '步步高', desc: '期末成绩连续 3 个学期上升', check: s => s.examScores.length >= 3 && s.examScores.slice(-3).every((score, i, arr) => i === 0 || score > arr[i - 1]), progress: s => [Math.min(s.examScores.length, 3), 3] },
+  { id: 'honor-graduate', cat: 'exam', icon: '誉', tier: 'gold', name: '荣誉毕业生', desc: '以 85 分以上的四年均分毕业', check: s => s.graduated && s.avgExamScore >= 85, progress: s => [s.avgExamScore, 85] },
+  { id: 'all-pass', cat: 'exam', icon: '稳', tier: 'silver', name: '稳过四年', desc: '八场期末考成绩全部不低于 60', check: s => s.graduated && s.examScores.length >= 8 && s.examScores.every(score => score >= 60), progress: s => [s.examScores.filter(score => score >= 60).length, 8] },
+  { id: 'calm-graduate', cat: 'exam', icon: '定', tier: 'gold', name: '从容毕业', desc: '整个大学期间期末考从未超时', check: s => s.graduated && s.calmExams >= 8, progress: s => [s.calmExams, 8] },
+
+  // ---- 生涯：学期里程碑与结局 ----
+  { id: 'freshman-done', cat: 'career', icon: '一', tier: 'bronze', name: '大一幸存者', desc: '读完大一全年（前两学期）', check: s => s.semestersFinished >= 2, progress: s => [s.semestersFinished, 2] },
+  { id: 'halfway-done', cat: 'career', icon: '半', tier: 'silver', name: '半程纪念', desc: '读完大学前四年的一半学期', check: s => s.semestersFinished >= 4, progress: s => [s.semestersFinished, 4] },
+  { id: 'semester-6', cat: 'career', icon: '暮', tier: 'silver', name: '毕业倒计时', desc: '读完前六个学期，进入大学最后一年', check: s => s.semestersFinished >= 6, progress: s => [s.semestersFinished, 6] },
+  { id: 'graduate', cat: 'career', icon: '毕', tier: 'gold', name: '顺利毕业', desc: '走完八个学期，迎来毕业结局', check: s => s.graduated, progress: s => [s.semestersFinished, 8] },
+  { id: 'star-of-qingwu', cat: 'career', icon: '星', tier: 'gold', name: '青梧之星', desc: '以「群星之间的求知者」结局毕业', check: s => s.endingId === 'scholar', progress: s => [s.endingId === 'scholar' ? 1 : 0, 1] },
+  { id: 'rest-ending', cat: 'career', icon: '憩', tier: 'silver', name: '学会休息的人', desc: '以「认真生活的追光者」结局毕业', check: s => s.endingId === 'sunshine', progress: s => [s.endingId === 'sunshine' ? 1 : 0, 1] },
+  { id: 'second-chance', cat: 'career', icon: '逆', tier: 'silver', name: '逆风翻盘', desc: '以「正在生长的普通大人」结局毕业', check: s => s.endingId === 'ordinary', progress: s => [s.endingId === 'ordinary' ? 1 : 0, 1] },
+  { id: 'graduate-lin', cat: 'career', icon: '夏', tier: 'bronze', name: '知夏的答卷', desc: '以林知夏的身份完成毕业', check: s => s.graduated && s.characterId === 'lin', progress: s => [s.graduated && s.characterId === 'lin' ? 1 : 0, 1] },
+  { id: 'graduate-chen', cat: 'career', icon: '屿', tier: 'bronze', name: '陈屿的答卷', desc: '以陈屿的身份完成毕业', check: s => s.graduated && s.characterId === 'chen', progress: s => [s.graduated && s.characterId === 'chen' ? 1 : 0, 1] },
+  { id: 'graduate-su', cat: 'career', icon: '桃', tier: 'bronze', name: '苏桃的答卷', desc: '以苏桃的身份完成毕业', check: s => s.graduated && s.characterId === 'su', progress: s => [s.graduated && s.characterId === 'su' ? 1 : 0, 1] },
+  { id: 'graduate-jiang', cat: 'career', icon: '野', tier: 'bronze', name: '江野的答卷', desc: '以江野的身份完成毕业', check: s => s.graduated && s.characterId === 'jiang', progress: s => [s.graduated && s.characterId === 'jiang' ? 1 : 0, 1] },
+
+  // ---- 隐藏成就：条件苛刻、图鉴中默认显示「？？？」，解锁后才显形 ----
+  { id: 'secret-perfect', cat: 'secret', icon: '璧', tier: 'gold', hidden: true, name: '完美无瑕', desc: '在一场期末考中拿到满分 100 分', check: s => s.perfectScoreExams >= 1, progress: s => [Math.min(s.perfectScoreExams, 1), 1] },
+  { id: 'secret-all-90', cat: 'secret', icon: '玖', tier: 'gold', hidden: true, name: '零瑕疵四年', desc: '八场期末考成绩全部在 90 分以上', check: s => s.graduated && s.examScores.length >= 8 && s.examScores.every(score => score >= 90), progress: s => [s.examScores.filter(score => score >= 90).length, 8] },
+  { id: 'secret-legend', cat: 'secret', icon: '传', tier: 'gold', hidden: true, name: '传说毕业生', desc: '以 90 分以上均分毕业，且五项属性都不低于 80', check: s => s.graduated && s.avgExamScore >= 90 && s.statKeys.every(key => s.stats[key] >= 80), progress: s => [s.statKeys.filter(key => s.stats[key] >= 80).length, s.statKeys.length] },
+  { id: 'secret-ashes', cat: 'secret', icon: '焰', tier: 'gold', hidden: true, name: '凤凰涅槃', desc: '经历过一次不及格的学期，仍以 85 分以上均分毕业', check: s => s.graduated && s.minExamScore < 50 && s.avgExamScore >= 85, progress: s => [s.graduated ? 1 : 0, 1] },
+  { id: 'secret-burn', cat: 'secret', icon: '烬', tier: 'gold', hidden: true, name: '燃烧的答卷', desc: '精力低于 15 时走进考场，仍然拿到 85 分以上', check: s => s.burnedExams >= 1, progress: s => [Math.min(s.burnedExams, 1), 1] },
+  { id: 'secret-even', cat: 'secret', icon: '偶', tier: 'silver', hidden: true, name: '偶数人生', desc: '完成四场以上期末考，且每场成绩都是偶数', check: s => s.examScores.length >= 4 && s.examScores.every(score => score % 2 === 0), progress: s => [s.examScores.filter(score => score % 2 === 0).length, 4] },
+  { id: 'secret-dejavu', cat: 'secret', icon: '复', tier: 'silver', hidden: true, name: '既视感', desc: '连续两场期末考拿到一模一样的分数', check: s => s.examScores.some((score, i) => i > 0 && score === s.examScores[i - 1]), progress: s => [s.examScores.some((score, i) => i > 0 && score === s.examScores[i - 1]) ? 1 : 0, 1] },
+  { id: 'secret-complete', cat: 'secret', icon: '全', tier: 'gold', hidden: true, name: '图鉴完全体', desc: '解锁除本项之外的全部成就', check: s => (s.unlockedIds || []).filter(id => id !== 'secret-complete').length >= ACHIEVEMENTS.length - 1, progress: s => [(s.unlockedIds || []).filter(id => id !== 'secret-complete').length, ACHIEVEMENTS.length - 1] }
+];
+
+const ACHIEVEMENT_MAP = {};
+ACHIEVEMENTS.forEach(item => { ACHIEVEMENT_MAP[item.id] = item; });
+
+// 返回 snapshot 下「应当解锁但尚未解锁」的成就列表（保持声明顺序）
+function evaluateAchievements(snapshot, unlocked) {
+  const done = new Set(unlocked || []);
+  return ACHIEVEMENTS.filter(item => !done.has(item.id) && item.check(snapshot));
+}
+
+function achievementById(id) { return ACHIEVEMENT_MAP[id] || null; }
+
+const HIDDEN_ACHIEVEMENTS = ACHIEVEMENTS.filter(item => item.hidden);
+
+// 生成成就图鉴列表（含解锁状态与进度），供双端的成就面板渲染。
+// 隐藏成就未解锁时只返回「？？？」遮罩项，不泄露图标、名称、条件与进度。
+function buildAchievementList(snapshot, unlocked) {
+  const done = new Set(unlocked || []);
+  return ACHIEVEMENTS.map(item => {
+    const isUnlocked = done.has(item.id);
+    const base = {
+      id: item.id, tier: item.tier, cat: item.cat,
+      catName: ACHIEVEMENT_CATEGORIES[item.cat].name,
+      catColor: ACHIEVEMENT_CATEGORIES[item.cat].color,
+      hidden: !!item.hidden, unlocked: isUnlocked
+    };
+    if (item.hidden && !isUnlocked) {
+      return { ...base, masked: true, icon: '？', name: '？？？', desc: '隐藏成就 · 解锁后才会显现真容', current: 0, target: 1 };
+    }
+    const [current, target] = item.progress ? item.progress(snapshot) : [0, 1];
+    return { ...base, masked: false, icon: item.icon, name: item.name, desc: item.desc, current, target };
+  });
+}
+
+module.exports = { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, HIDDEN_ACHIEVEMENTS, evaluateAchievements, achievementById, buildAchievementList };
+
+};
 modules['core'] = function(module, exports, require) {
 const { CHARACTERS, EVENTS, ENDINGS, NPCS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, EXAM_BANK, affinityTier, getExamQuestions, semesterLabel } = require('content');
 const { createRng, decodeSeed, encodeSeed } = require('random');
+const { evaluateAchievements, achievementById } = require('achievements');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
+
+// 期末考单题限时（毫秒）：考试卡倒计时与超时判错共用
+const EXAM_QUESTION_MS = 30000;
 
 // 种子码必须由调用方给进来：引擎自己不掷骰子，同一个码必然复现同一局
 function resolveSeedCode(seedCode) {
@@ -1088,7 +1202,20 @@ class GameCore {
     this.examAnswers = [];
     this.currentExam = null;
     this.examScores = [];       // 每学期成绩
+    this.bestExamScore = 0;     // 单场最高期末分
+    this.examTimer = null;      // { remaining, running, lastAt } 单题倒计时
+    this.examTimeouts = 0;      // 本场考试超时题数（按错处理）
+    this.perfectExams = 0;      // 全对场次
+    this.calmExams = 0;         // 无超时题的完整场次
+    this.perfectScoreExams = 0; // 满分 100 分场次
+    this.minExamScore = null;   // 历史最低学期成绩
+    this.burnedExams = 0;       // 精力低于 15 开考仍拿 85 分以上的场次
+    this.examStartEnergy = null;// 本场开考时的精力（用于隐藏成就判定）
     this.ending = null;
+    this.achievements = [];         // 已解锁成就 id（按解锁顺序）
+    this.achievementLog = [];       // 解锁记录 { id, semester, week }
+    this.pendingAchievements = [];  // 待 UI 弹出全屏飘条的成就 id 队列
+    this.energyLowReached = false;  // 精力是否曾跌破 20（「极限运转」成就）
     // 关系：每个 NPC 一个好感度，答应加、拒绝减，久了不维护会淡
     this.affinity = {};
     // 主动找上门、还没答复的请求
@@ -1236,6 +1363,105 @@ class GameCore {
     if (!record) return;
     const consequence = record.consequences.find(item => item.eventId === eventId);
     if (consequence) { consequence.fired = true; consequence.firedAt = firedAt; }
+  }
+
+  // ============ 成就系统 ============
+
+  // 快照：把成就判定需要的所有字段一次性算好，纯读不写
+  achievementSnapshot() {
+    const sceneCounts = {};
+    this.completed.forEach(key => { const scene = key.split(':')[0]; sceneCounts[scene] = (sceneCounts[scene] || 0) + 1; });
+    const visitedValues = Object.values(this.visited);
+    const statKeys = ['knowledge', 'fitness', 'mood', 'social', 'practice'];
+    return {
+      characterId: this.character.id,
+      stats: { ...this.stats },
+      energy: this.energy,
+      energyLowReached: this.energyLowReached,
+      completedCount: this.completed.length,
+      totalStories: Object.values(EVENTS).reduce((sum, scene) => sum + scene.quests.length, 0),
+      visitedScenes: Object.keys(sceneCounts).length,
+      totalScenes: Object.keys(EVENTS).length,
+      sceneMaxCompleted: Object.keys(EVENTS).reduce((max, sceneId) => Math.max(max, sceneCounts[sceneId] || 0), 0),
+      sceneQuestTarget: Math.max(...Object.values(EVENTS).map(scene => scene.quests.length)),
+      repeatedQuests: visitedValues.filter(times => times > 1).length,
+      maxVisited: visitedValues.reduce((max, times) => Math.max(max, times), 0),
+      semestersFinished: this.ending ? this.maxSemesters : this.semester - 1,
+      examScores: [...this.examScores],
+      avgExamScore: this.examScores.length ? Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length) : 0,
+      bestExamScore: this.bestExamScore,
+      perfectExams: this.perfectExams,
+      calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams,
+      minExamScore: this.minExamScore === null ? 100 : this.minExamScore,
+      burnedExams: this.burnedExams,
+      unlockedIds: [...this.achievements],
+      graduated: !!this.ending,
+      endingId: this.ending ? this.ending.id : null,
+      statKeys
+    };
+  }
+
+  // 评估并解锁新成就，返回本次新解锁的完整成就对象列表
+  // 两轮判定：「图鉴完全体」这类元成就要等其他成就先入账才满足条件
+  checkAchievements() {
+    const fresh = [];
+    for (let pass = 0; pass < 2; pass++) {
+      const snapshot = this.achievementSnapshot();
+      const batch = evaluateAchievements(snapshot, this.achievements);
+      if (!batch.length) break;
+      batch.forEach(item => {
+        this.achievements.push(item.id);
+        this.achievementLog.push({ id: item.id, semester: this.semester, week: this.week });
+        this.pendingAchievements.push(item.id);
+        fresh.push(item);
+      });
+    }
+    return fresh;
+  }
+
+  // UI 取走一条待弹出成就（全屏飘条队列）
+  consumePendingAchievement() {
+    const id = this.pendingAchievements.shift();
+    return id ? achievementById(id) : null;
+  }
+
+  // ============ 期末考倒计时（超时按错处理） ============
+  // 时间由调用方注入（毫秒时间戳），引擎自身不读墙钟，保持确定性可复现。
+
+  // 单题倒计时推进：返回剩余毫秒与是否超时
+  tickExam(now) {
+    const timer = this.examTimer;
+    if (!timer) return { remaining: 0, running: false, timedOut: false };
+    if (!timer.running || !this.currentExam) return { remaining: timer.remaining, running: timer.running, timedOut: false };
+    const delta = Math.max(0, now - timer.lastAt);
+    timer.lastAt = now;
+    timer.remaining = Math.max(0, timer.remaining - delta);
+    return { remaining: timer.remaining, running: true, timedOut: timer.remaining <= 0 };
+  }
+
+  // 切后台/失焦时暂停计时
+  pauseExam(now) {
+    if (this.examTimer && this.examTimer.running) { this.tickExam(now); this.examTimer.running = false; }
+  }
+
+  // 回到前台时恢复计时
+  resumeExam(now) {
+    if (this.examTimer && !this.examTimer.running) { this.examTimer.running = true; this.examTimer.lastAt = now; }
+  }
+
+  // 超时判错：记 -1 并立即进入下一题
+  timeoutExamQuestion(now) {
+    const questions = this.currentExam;
+    if (!questions || this.examAnswers.length >= questions.length) return null;
+    this.examAnswers.push(-1);
+    this.examTimeouts += 1;
+    this.resetExamTimer(now);
+    return { timedOut: true, finished: this.examAnswers.length >= questions.length };
+  }
+
+  resetExamTimer(now) {
+    this.examTimer = { remaining: EXAM_QUESTION_MS, running: true, lastAt: now };
   }
 
   // 因果面板要的全部数据：总量、分类计数、时间线、还没发作的后果
@@ -1473,6 +1699,8 @@ class GameCore {
       if (k === 'energy') this.energy = clamp(this.energy + value);
       else if (this.stats[k] !== undefined) this.stats[k] = clamp(this.stats[k] + value);
     });
+    if (this.energy < 20) this.energyLowReached = true;
+    this.checkAchievements();
 
     return { reply: choice.reply, applied, repeat, roundIndex, roundsLength: rounds.length };
   }
@@ -1494,7 +1722,7 @@ class GameCore {
     const npc = this.npcOfScene(sceneId);
     const applied = this.applyEffects(choice.effects, { sceneId, factor, npcId: npc ? npc.id : null });
     if (this.character.id === 'su' && !this.visited[key]) this.stats.mood = clamp(this.stats.mood + 2);
-    if (this.energy < 20) this.stats.mood = clamp(this.stats.mood - 2);
+    if (this.energy < 20) { this.stats.mood = clamp(this.stats.mood - 2); this.energyLowReached = true; }
 
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
@@ -1527,21 +1755,28 @@ class GameCore {
     }
     const fired = this.collectTriggers();
     const request = this.scheduleRequest();
+    this.checkAchievements();
     return { reply: choice.reply, applied, repeat, examReady: this.examReady, chained, fired, request, logId: record.id, hidden: hidden ? quest : null };
   }
 
-  startExam() {
+  startExam(now = 0) {
     if (!this.examReady) return null;
     this.currentExam = pickExamQuestions(this.rng);
     this.examAnswers = [];
+    this.examTimeouts = 0;
+    this.examStartEnergy = this.energy;
+    this.resetExamTimer(now);
     return this.currentExam;
   }
 
-  answerExam(index) {
+  answerExam(index, now = 0) {
     const questions = this.currentExam;
-    if (!questions || this.examAnswers.length >= questions.length || index < 0 || index > 3) return false;
+    if (!questions || this.examAnswers.length >= questions.length || index < 0 || index > 3) return null;
+    // 倒计时已耗尽时点击：按超时判错处理
+    if (this.examTimer && this.tickExam(now).timedOut) return this.timeoutExamQuestion(now);
     this.examAnswers.push(index);
-    return true;
+    this.resetExamTimer(now);
+    return { timedOut: false, finished: this.examAnswers.length >= questions.length };
   }
 
   // 返回 { semesterResult } 进入下一学期，或 { ending } 大四毕业结算
@@ -1551,6 +1786,14 @@ class GameCore {
     const correct = this.examAnswers.reduce((sum, a, i) => sum + (a === questions[i].answer ? 1 : 0), 0);
     const score = Math.round(clamp(correct * 10 + this.stats.knowledge * 0.35 + this.stats.practice * 0.15));
     this.examScores.push(score);
+    if (score > this.bestExamScore) this.bestExamScore = score;
+    if (correct === questions.length) this.perfectExams += 1;
+    if (this.examTimeouts === 0) this.calmExams += 1;
+    if (score >= 100) this.perfectScoreExams += 1;
+    this.minExamScore = this.minExamScore === null ? score : Math.min(this.minExamScore, score);
+    if (this.examStartEnergy !== null && this.examStartEnergy < 15 && score >= 85) this.burnedExams += 1;
+    this.examStartEnergy = null;
+    this.examTimer = null;
     this.pushLog({
       type: 'exam', title: `${this.semesterName} 期末考试`, sceneName: '考场',
       choice: `答对 ${correct} / ${questions.length} 题`,
@@ -1563,15 +1806,17 @@ class GameCore {
     if (this.semester >= this.maxSemesters) {
       const avg = Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length);
       this.ending = { ...this.pickEnding(avg), score: avg, examScores: [...this.examScores], stats: { ...this.stats } };
+      this.checkAchievements();
       return { ending: this.ending };
     }
 
-    const result = { semester: this.semester, semesterName: semesterLabel(this.semester), score, correct };
+    const result = { semester: this.semester, semesterName: semesterLabel(this.semester), score, correct, timeouts: this.examTimeouts, examScores: [...this.examScores] };
     this.semester += 1;
     this.week = 1;
     this.currentExam = null;
     this.examAnswers = [];
     this.energy = clamp(this.energy + 40); // 假期恢复
+    this.checkAchievements();
     return { semesterResult: result, nextSemester: this.semester, nextSemesterName: semesterLabel(this.semester) };
   }
 
@@ -1600,7 +1845,12 @@ class GameCore {
       choiceLog: this.choiceLog.slice(-120), choiceSeq: this.choiceSeq,
       seedCode: this.seedCode, rngState: this.rng.getState(),
       playthrough: this.playthrough, legacyId: this.legacyId,
-      legacyEnergyBonus: this.legacyEnergyBonus, hiddenCleared: this.hiddenCleared
+      legacyEnergyBonus: this.legacyEnergyBonus, hiddenCleared: this.hiddenCleared,
+      achievements: this.achievements.slice(), achievementLog: this.achievementLog.slice(),
+      energyLowReached: this.energyLowReached, bestExamScore: this.bestExamScore,
+      perfectExams: this.perfectExams, calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams, minExamScore: this.minExamScore,
+      burnedExams: this.burnedExams
     };
   }
 
@@ -1634,11 +1884,21 @@ class GameCore {
     core.hiddenCleared = (state.hiddenCleared || []).slice();
     if (state.choiceSeq !== undefined) core.choiceSeq = state.choiceSeq;
     if (state.rngState !== undefined) core.rng.setState(state.rngState);
+    // 成就与考试追踪字段（旧存档没有这些字段时保持默认，不报错）
+    if (state.achievements !== undefined) core.achievements = state.achievements.slice();
+    if (state.achievementLog !== undefined) core.achievementLog = state.achievementLog.map(item => ({ ...item }));
+    if (state.energyLowReached !== undefined) core.energyLowReached = state.energyLowReached;
+    if (state.bestExamScore !== undefined) core.bestExamScore = state.bestExamScore;
+    if (state.perfectExams !== undefined) core.perfectExams = state.perfectExams;
+    if (state.calmExams !== undefined) core.calmExams = state.calmExams;
+    if (state.perfectScoreExams !== undefined) core.perfectScoreExams = state.perfectScoreExams;
+    if (state.minExamScore !== undefined) core.minExamScore = state.minExamScore;
+    if (state.burnedExams !== undefined) core.burnedExams = state.burnedExams;
     return core;
   }
 }
 
-module.exports = { GameCore, pickExamQuestions, clamp, EFFECT_LABELS, effectLabel, effectTags };
+module.exports = { GameCore, pickExamQuestions, clamp, EFFECT_LABELS, effectLabel, effectTags, EXAM_QUESTION_MS };
 
 };
 modules['choicelog'] = function(module, exports, require) {

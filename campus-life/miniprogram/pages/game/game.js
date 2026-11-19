@@ -1,9 +1,10 @@
 const { STAT_META, EVENTS, NPCS, REQUESTS, CHAIN_EVENTS, semesterLabel, statName } = require('../../data/content');
-const { GameCore } = require('../../engine/core');
+const { GameCore, EXAM_QUESTION_MS } = require('../../engine/core');
 const { buildChoiceLogView } = require('../../engine/choicelog');
 const Save = require('../../engine/save');
 const { CampusRenderer, drawSceneArt } = require('../../engine/renderer');
 const { CampusWorld } = require('../../engine/world');
+const { ACHIEVEMENTS, HIDDEN_ACHIEVEMENTS, achievementById, buildAchievementList } = require('../../data/achievements');
 
 // 场景 -> 那个场景的主角
 const npcByEvent = {};
@@ -12,6 +13,10 @@ NPCS.forEach(n => { npcByEvent[n.event] = n; });
 // 因果面板的分类标签
 const CAUSE_TYPES = { all: '全部', quest: '任务', request: '关系', chain: '后果', hidden: '隐藏', exam: '学业', legacy: '继承' };
 const CAUSE_EMPTY = { quest: '这一段还没有可选的任务。', hidden: '还没有解锁隐藏事件。', request: '还没有人向你开口。', chain: '还没有滚出后果。', exam: '还没有考过试。', legacy: '这一局没有继承任何东西。', all: '还没有做过任何选择。' };
+
+// 成就等级元信息（图鉴与飘条共用）
+const TIER_META = { bronze: { label: '铜', color: '#b08d57' }, silver: { label: '银', color: '#8d9bab' }, gold: { label: '金', color: '#c49a3f' }, hidden: { label: '秘', color: '#8a6bd1' } };
+const pad2 = value => String(value).padStart(2, '0');
 
 Page({
   data: {
@@ -23,7 +28,10 @@ Page({
     chain: null, chainChoices: [], chainInitial: '', eventChains: [], eventRequests: [], eventTriggers: [],
     replyTitle: '', replyKicker: '', replyAffinity: '', replyAffinityClass: '', replyConsequence: '',
     questText: '', questChoices: [], questRound: 1, questRounds: 1, questFinal: true, nextReply: false,
-    endingLegacy: ''
+    endingLegacy: '',
+    achvToasts: [], achvFlash: '', achvCountBump: false, achvCount: 0, achvTotal: ACHIEVEMENTS.length,
+    achvHiddenTotal: HIDDEN_ACHIEVEMENTS.length, achvHiddenLeft: 0, achvList: [], achvUnlocked: 0,
+    examTimerText: '00:30', examTimerWidth: 100, examHurry: false, examTimeoutFlash: false
   },
 
   onLoad() {
@@ -69,8 +77,9 @@ Page({
     });
   },
 
-  onUnload() { this.stopped = true; },
-  onHide() { this.world && this.world.setInput(0, 0); },
+  onUnload() { this.stopped = true; this.stopExamTicker && this.stopExamTicker(); },
+  onHide() { this.world && this.world.setInput(0, 0); this.core && this.core.pauseExam && this.core.pauseExam(Date.now()); },
+  onShow() { this.core && this.core.resumeExam && this.core.resumeExam(Date.now()); },
 
   loop() {
     if (this.stopped || !this.renderer) return;
@@ -99,8 +108,64 @@ Page({
       examReady: this.core.examReady, seedCode: this.core.seedCode,
       eventBadge: this.core.pendingChainEvents().length + this.core.pendingRequests().length,
       causeCount: this.core.choiceLog.length,
-      hiddenText: `隐藏事件 ${this.core.hiddenCleared.length} / ${this.core.totalHiddenQuests}`
+      hiddenText: `隐藏事件 ${this.core.hiddenCleared.length} / ${this.core.totalHiddenQuests}`,
+      achvCount: this.core.achievements.length, achvTotal: ACHIEVEMENTS.length
     });
+  },
+
+  // 把待弹出的成就逐条错峰喂给全屏飘条
+  drainAchievements() {
+    let index = 0;
+    let item;
+    while ((item = this.core.consumePendingAchievement())) {
+      const captured = item;
+      setTimeout(() => this.showAchvToast(captured), index * 340);
+      index++;
+    }
+  },
+
+  showAchvToast(item) {
+    const secret = !!item.hidden;
+    const tier = secret ? TIER_META.hidden : (TIER_META[item.tier] || TIER_META.bronze);
+    const toast = { id: item.id, icon: item.icon, name: item.name, desc: item.desc, tier: item.tier, hidden: secret, gold: item.tier === 'gold', tierLabel: secret ? '隐藏' : tier.label, tierColor: tier.color };
+    this.setData({ achvToasts: this.data.achvToasts.concat(toast) });
+    if (secret) {
+      if (wx.vibrateLong) wx.vibrateLong({ fail: () => {} });
+      setTimeout(() => { if (wx.vibrateShort) wx.vibrateShort({ type: 'heavy', fail: () => {} }); }, 380);
+    } else if (wx.vibrateShort) {
+      wx.vibrateShort({ type: item.tier === 'gold' ? 'heavy' : item.tier === 'silver' ? 'medium' : 'light', fail: () => {} });
+    }
+    this.setData({ achvFlash: `achv-flash-on tier-${secret ? 'hidden' : item.tier}` });
+    setTimeout(() => this.setData({ achvFlash: '' }), secret ? 2200 : 1000);
+    this.setData({ achvCount: this.core.achievements.length, achvCountBump: false });
+    setTimeout(() => this.setData({ achvCountBump: true }), 30);
+    const id = item.id;
+    setTimeout(() => this.setData({ achvToasts: this.data.achvToasts.filter(t => t.id !== id) }), secret ? 5400 : 3400);
+  },
+
+  openAchievements() {
+    const list = buildAchievementList(this.core.achievementSnapshot(), this.core.achievements).map(item => {
+      const tierLabel = item.masked ? '？' : item.hidden ? '秘' : (TIER_META[item.tier] || TIER_META.bronze).label;
+      return {
+        ...item, tierLabel,
+        metaText: item.masked ? '隐藏成就' : `${item.catName} · ${tierLabel}级`,
+        progress: Math.min(100, Math.round(item.current / item.target * 100))
+      };
+    });
+    this.setData({ modal: 'achv', achvList: list, achvUnlocked: list.filter(i => i.unlocked).length, achvHiddenLeft: list.filter(i => i.masked).length });
+  },
+
+  // 学期成绩柱状对比数据
+  buildChartData(scores, highlightIndex, captionOverride) {
+    const bars = scores.map((score, i) => ({ value: score, height: Math.max(4, Math.round(score)), label: `S${i + 1}`, current: i === highlightIndex }));
+    let caption = '未来学期，继续成长', deltaClass = '';
+    if (captionOverride) caption = captionOverride;
+    else if (highlightIndex > 0) {
+      const delta = scores[highlightIndex] - scores[highlightIndex - 1];
+      caption = delta >= 0 ? `较上学期 +${delta} 分` : `较上学期 ${delta} 分`;
+      deltaClass = delta >= 0 ? 'up' : 'down';
+    }
+    return { bars, caption, deltaClass };
   },
 
   // 哪些 NPC 带着请求找上门（给渲染器画感叹号）
@@ -430,6 +495,7 @@ Page({
       const stepEffects = Object.keys(step.applied).map(key => ({ key, name: statName(key), value: step.applied[key] }));
       wx.setStorageSync('campus-progress', this.core.serialize());
       this.syncData();
+      this.drainAchievements();
       this.setData({
         modal: 'reply', reply: step.reply || '你把这一步想清楚了。', effects: stepEffects,
         replyTitle: curQuest.title,
@@ -443,6 +509,7 @@ Page({
     const effects = Object.keys(result.applied).map(key => ({ key, name: statName(key), value: result.applied[key] }));
     wx.setStorageSync('campus-progress', this.core.serialize());
     this.syncData();
+    this.drainAchievements();
     // 有请求上门 / 有连锁事件发作，排队等这段回复关掉再提示
     if (result.request) {
       const npc = NPCS.find(n => n.id === result.request.npc);
@@ -500,30 +567,72 @@ Page({
     this.setData({ modal: 'examIntro', examSemesterName: this.core.semesterName, isFinal: this.core.semester >= this.core.maxSemesters });
   },
   startExam() {
-    const questions = this.core.startExam();
+    const questions = this.core.startExam(Date.now());
     if (!questions) return;
-    this.setData({ modal: 'exam', examQuestions: questions, examIndex: 0, currentQuestion: questions[0] });
+    this.showQuestion();
   },
+  // 展示当前题目并启动倒计时
+  showQuestion() {
+    const questions = this.core.currentExam || [];
+    const examIndex = this.core.examAnswers.length;
+    const q = questions[examIndex]; if (!q) return;
+    const t = this.core.tickExam(Date.now());
+    const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+    this.setData({
+      modal: 'exam', examQuestions: questions, examIndex, currentQuestion: q,
+      examTimerText: `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`,
+      examTimerWidth: t.remaining / EXAM_QUESTION_MS * 100, examHurry: t.remaining <= 10000, examTimeoutFlash: false
+    });
+    this.startExamTicker();
+  },
+  // 每 100ms 刷新倒计时；耗尽时自动按错进入下一题
+  startExamTicker() {
+    this.stopExamTicker();
+    this.examTimeoutBusy = false;
+    this.examTicker = setInterval(() => {
+      if (this.data.modal !== 'exam') { this.stopExamTicker(); return; }
+      const t = this.core.tickExam(Date.now());
+      const secs = Math.max(0, Math.ceil(t.remaining / 1000));
+      this.setData({
+        examTimerText: `${pad2(Math.floor(secs / 60))}:${pad2(secs % 60)}`,
+        examTimerWidth: t.remaining / EXAM_QUESTION_MS * 100, examHurry: t.remaining <= 10000
+      });
+      if (t.timedOut && !this.examTimeoutBusy) {
+        this.examTimeoutBusy = true;
+        this.setData({ examTimeoutFlash: true });
+        setTimeout(() => {
+          const result = this.core.timeoutExamQuestion(Date.now());
+          this.setData({ examTimeoutFlash: false });
+          if (result && result.finished) this.handleExamFinished();
+          else { this.showQuestion(); this.examTimeoutBusy = false; }
+        }, 700);
+      }
+    }, 100);
+  },
+  stopExamTicker() { if (this.examTicker) { clearInterval(this.examTicker); this.examTicker = null; } },
   answerExam(event) {
     if (this.answering) return;
     this.answering = true;
-    this.core.answerExam(Number(event.currentTarget.dataset.index));
+    this.core.answerExam(Number(event.currentTarget.dataset.index), Date.now());
     setTimeout(() => {
       this.answering = false;
-      if (this.core.examAnswers.length >= this.core.currentExam.length) {
-        const outcome = this.core.finishExam();
-        this.syncData();
-        if (outcome && outcome.ending) {
-          this.recordRun();
-          this.setData({ modal: 'ending', ending: outcome.ending });
-        } else if (outcome && outcome.semesterResult) {
-          this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName });
-        }
-      } else {
-        const examIndex = this.core.examAnswers.length;
-        this.setData({ examIndex, currentQuestion: this.core.currentExam[examIndex] });
-      }
+      if (this.core.examAnswers.length >= this.core.currentExam.length) this.handleExamFinished();
+      else this.showQuestion();
     }, 180);
+  },
+  handleExamFinished() {
+    this.stopExamTicker();
+    const outcome = this.core.finishExam();
+    this.syncData();
+    this.drainAchievements();
+    if (outcome && outcome.ending) {
+      this.recordRun();
+      this.setData({ modal: 'ending', ending: outcome.ending, perfectExams: this.core.perfectExams });
+    } else if (outcome && outcome.semesterResult) {
+      const scores = outcome.semesterResult.examScores || this.core.examScores;
+      const semesterAchv = this.core.achievementLog.filter(entry => entry.semester === outcome.semesterResult.semester).map(entry => achievementById(entry.id)).filter(Boolean).map(item => ({ id: item.id, icon: item.icon, name: item.name, hidden: !!item.hidden, tierColor: item.hidden ? TIER_META.hidden.color : (TIER_META[item.tier] || TIER_META.bronze).color, tier: item.tier }));
+      this.setData({ modal: 'semester', semesterResult: outcome.semesterResult, nextSemesterName: outcome.nextSemesterName, semesterChart: this.buildChartData(scores, scores.length - 1), semesterAchv });
+    }
   },
   nextSemester() { this.setData({ modal: '' }); },
 

@@ -1,7 +1,11 @@
 const { CHARACTERS, EVENTS, ENDINGS, NPCS, REQUESTS, CHAIN_EVENTS, LEGACY_OPTIONS, HIDDEN_EVENTS, EXAM_BANK, affinityTier, getExamQuestions, semesterLabel } = require('../data/content');
 const { createRng, decodeSeed, encodeSeed } = require('./random');
+const { evaluateAchievements, achievementById } = require('../data/achievements');
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
+
+// 期末考单题限时（毫秒）：考试卡倒计时与超时判错共用
+const EXAM_QUESTION_MS = 30000;
 
 // 种子码必须由调用方给进来：引擎自己不掷骰子，同一个码必然复现同一局
 function resolveSeedCode(seedCode) {
@@ -56,7 +60,20 @@ class GameCore {
     this.examAnswers = [];
     this.currentExam = null;
     this.examScores = [];       // 每学期成绩
+    this.bestExamScore = 0;     // 单场最高期末分
+    this.examTimer = null;      // { remaining, running, lastAt } 单题倒计时
+    this.examTimeouts = 0;      // 本场考试超时题数（按错处理）
+    this.perfectExams = 0;      // 全对场次
+    this.calmExams = 0;         // 无超时题的完整场次
+    this.perfectScoreExams = 0; // 满分 100 分场次
+    this.minExamScore = null;   // 历史最低学期成绩
+    this.burnedExams = 0;       // 精力低于 15 开考仍拿 85 分以上的场次
+    this.examStartEnergy = null;// 本场开考时的精力（用于隐藏成就判定）
     this.ending = null;
+    this.achievements = [];         // 已解锁成就 id（按解锁顺序）
+    this.achievementLog = [];       // 解锁记录 { id, semester, week }
+    this.pendingAchievements = [];  // 待 UI 弹出全屏飘条的成就 id 队列
+    this.energyLowReached = false;  // 精力是否曾跌破 20（「极限运转」成就）
     // 关系：每个 NPC 一个好感度，答应加、拒绝减，久了不维护会淡
     this.affinity = {};
     // 主动找上门、还没答复的请求
@@ -204,6 +221,105 @@ class GameCore {
     if (!record) return;
     const consequence = record.consequences.find(item => item.eventId === eventId);
     if (consequence) { consequence.fired = true; consequence.firedAt = firedAt; }
+  }
+
+  // ============ 成就系统 ============
+
+  // 快照：把成就判定需要的所有字段一次性算好，纯读不写
+  achievementSnapshot() {
+    const sceneCounts = {};
+    this.completed.forEach(key => { const scene = key.split(':')[0]; sceneCounts[scene] = (sceneCounts[scene] || 0) + 1; });
+    const visitedValues = Object.values(this.visited);
+    const statKeys = ['knowledge', 'fitness', 'mood', 'social', 'practice'];
+    return {
+      characterId: this.character.id,
+      stats: { ...this.stats },
+      energy: this.energy,
+      energyLowReached: this.energyLowReached,
+      completedCount: this.completed.length,
+      totalStories: Object.values(EVENTS).reduce((sum, scene) => sum + scene.quests.length, 0),
+      visitedScenes: Object.keys(sceneCounts).length,
+      totalScenes: Object.keys(EVENTS).length,
+      sceneMaxCompleted: Object.keys(EVENTS).reduce((max, sceneId) => Math.max(max, sceneCounts[sceneId] || 0), 0),
+      sceneQuestTarget: Math.max(...Object.values(EVENTS).map(scene => scene.quests.length)),
+      repeatedQuests: visitedValues.filter(times => times > 1).length,
+      maxVisited: visitedValues.reduce((max, times) => Math.max(max, times), 0),
+      semestersFinished: this.ending ? this.maxSemesters : this.semester - 1,
+      examScores: [...this.examScores],
+      avgExamScore: this.examScores.length ? Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length) : 0,
+      bestExamScore: this.bestExamScore,
+      perfectExams: this.perfectExams,
+      calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams,
+      minExamScore: this.minExamScore === null ? 100 : this.minExamScore,
+      burnedExams: this.burnedExams,
+      unlockedIds: [...this.achievements],
+      graduated: !!this.ending,
+      endingId: this.ending ? this.ending.id : null,
+      statKeys
+    };
+  }
+
+  // 评估并解锁新成就，返回本次新解锁的完整成就对象列表
+  // 两轮判定：「图鉴完全体」这类元成就要等其他成就先入账才满足条件
+  checkAchievements() {
+    const fresh = [];
+    for (let pass = 0; pass < 2; pass++) {
+      const snapshot = this.achievementSnapshot();
+      const batch = evaluateAchievements(snapshot, this.achievements);
+      if (!batch.length) break;
+      batch.forEach(item => {
+        this.achievements.push(item.id);
+        this.achievementLog.push({ id: item.id, semester: this.semester, week: this.week });
+        this.pendingAchievements.push(item.id);
+        fresh.push(item);
+      });
+    }
+    return fresh;
+  }
+
+  // UI 取走一条待弹出成就（全屏飘条队列）
+  consumePendingAchievement() {
+    const id = this.pendingAchievements.shift();
+    return id ? achievementById(id) : null;
+  }
+
+  // ============ 期末考倒计时（超时按错处理） ============
+  // 时间由调用方注入（毫秒时间戳），引擎自身不读墙钟，保持确定性可复现。
+
+  // 单题倒计时推进：返回剩余毫秒与是否超时
+  tickExam(now) {
+    const timer = this.examTimer;
+    if (!timer) return { remaining: 0, running: false, timedOut: false };
+    if (!timer.running || !this.currentExam) return { remaining: timer.remaining, running: timer.running, timedOut: false };
+    const delta = Math.max(0, now - timer.lastAt);
+    timer.lastAt = now;
+    timer.remaining = Math.max(0, timer.remaining - delta);
+    return { remaining: timer.remaining, running: true, timedOut: timer.remaining <= 0 };
+  }
+
+  // 切后台/失焦时暂停计时
+  pauseExam(now) {
+    if (this.examTimer && this.examTimer.running) { this.tickExam(now); this.examTimer.running = false; }
+  }
+
+  // 回到前台时恢复计时
+  resumeExam(now) {
+    if (this.examTimer && !this.examTimer.running) { this.examTimer.running = true; this.examTimer.lastAt = now; }
+  }
+
+  // 超时判错：记 -1 并立即进入下一题
+  timeoutExamQuestion(now) {
+    const questions = this.currentExam;
+    if (!questions || this.examAnswers.length >= questions.length) return null;
+    this.examAnswers.push(-1);
+    this.examTimeouts += 1;
+    this.resetExamTimer(now);
+    return { timedOut: true, finished: this.examAnswers.length >= questions.length };
+  }
+
+  resetExamTimer(now) {
+    this.examTimer = { remaining: EXAM_QUESTION_MS, running: true, lastAt: now };
   }
 
   // 因果面板要的全部数据：总量、分类计数、时间线、还没发作的后果
@@ -441,6 +557,8 @@ class GameCore {
       if (k === 'energy') this.energy = clamp(this.energy + value);
       else if (this.stats[k] !== undefined) this.stats[k] = clamp(this.stats[k] + value);
     });
+    if (this.energy < 20) this.energyLowReached = true;
+    this.checkAchievements();
 
     return { reply: choice.reply, applied, repeat, roundIndex, roundsLength: rounds.length };
   }
@@ -462,7 +580,7 @@ class GameCore {
     const npc = this.npcOfScene(sceneId);
     const applied = this.applyEffects(choice.effects, { sceneId, factor, npcId: npc ? npc.id : null });
     if (this.character.id === 'su' && !this.visited[key]) this.stats.mood = clamp(this.stats.mood + 2);
-    if (this.energy < 20) this.stats.mood = clamp(this.stats.mood - 2);
+    if (this.energy < 20) { this.stats.mood = clamp(this.stats.mood - 2); this.energyLowReached = true; }
 
     this.visited[key] = (this.visited[key] || 0) + 1;
     if (!this.completed.includes(key)) this.completed.push(key);
@@ -495,21 +613,28 @@ class GameCore {
     }
     const fired = this.collectTriggers();
     const request = this.scheduleRequest();
+    this.checkAchievements();
     return { reply: choice.reply, applied, repeat, examReady: this.examReady, chained, fired, request, logId: record.id, hidden: hidden ? quest : null };
   }
 
-  startExam() {
+  startExam(now = 0) {
     if (!this.examReady) return null;
     this.currentExam = pickExamQuestions(this.rng);
     this.examAnswers = [];
+    this.examTimeouts = 0;
+    this.examStartEnergy = this.energy;
+    this.resetExamTimer(now);
     return this.currentExam;
   }
 
-  answerExam(index) {
+  answerExam(index, now = 0) {
     const questions = this.currentExam;
-    if (!questions || this.examAnswers.length >= questions.length || index < 0 || index > 3) return false;
+    if (!questions || this.examAnswers.length >= questions.length || index < 0 || index > 3) return null;
+    // 倒计时已耗尽时点击：按超时判错处理
+    if (this.examTimer && this.tickExam(now).timedOut) return this.timeoutExamQuestion(now);
     this.examAnswers.push(index);
-    return true;
+    this.resetExamTimer(now);
+    return { timedOut: false, finished: this.examAnswers.length >= questions.length };
   }
 
   // 返回 { semesterResult } 进入下一学期，或 { ending } 大四毕业结算
@@ -519,6 +644,14 @@ class GameCore {
     const correct = this.examAnswers.reduce((sum, a, i) => sum + (a === questions[i].answer ? 1 : 0), 0);
     const score = Math.round(clamp(correct * 10 + this.stats.knowledge * 0.35 + this.stats.practice * 0.15));
     this.examScores.push(score);
+    if (score > this.bestExamScore) this.bestExamScore = score;
+    if (correct === questions.length) this.perfectExams += 1;
+    if (this.examTimeouts === 0) this.calmExams += 1;
+    if (score >= 100) this.perfectScoreExams += 1;
+    this.minExamScore = this.minExamScore === null ? score : Math.min(this.minExamScore, score);
+    if (this.examStartEnergy !== null && this.examStartEnergy < 15 && score >= 85) this.burnedExams += 1;
+    this.examStartEnergy = null;
+    this.examTimer = null;
     this.pushLog({
       type: 'exam', title: `${this.semesterName} 期末考试`, sceneName: '考场',
       choice: `答对 ${correct} / ${questions.length} 题`,
@@ -531,15 +664,17 @@ class GameCore {
     if (this.semester >= this.maxSemesters) {
       const avg = Math.round(this.examScores.reduce((a, b) => a + b, 0) / this.examScores.length);
       this.ending = { ...this.pickEnding(avg), score: avg, examScores: [...this.examScores], stats: { ...this.stats } };
+      this.checkAchievements();
       return { ending: this.ending };
     }
 
-    const result = { semester: this.semester, semesterName: semesterLabel(this.semester), score, correct };
+    const result = { semester: this.semester, semesterName: semesterLabel(this.semester), score, correct, timeouts: this.examTimeouts, examScores: [...this.examScores] };
     this.semester += 1;
     this.week = 1;
     this.currentExam = null;
     this.examAnswers = [];
     this.energy = clamp(this.energy + 40); // 假期恢复
+    this.checkAchievements();
     return { semesterResult: result, nextSemester: this.semester, nextSemesterName: semesterLabel(this.semester) };
   }
 
@@ -568,7 +703,12 @@ class GameCore {
       choiceLog: this.choiceLog.slice(-120), choiceSeq: this.choiceSeq,
       seedCode: this.seedCode, rngState: this.rng.getState(),
       playthrough: this.playthrough, legacyId: this.legacyId,
-      legacyEnergyBonus: this.legacyEnergyBonus, hiddenCleared: this.hiddenCleared
+      legacyEnergyBonus: this.legacyEnergyBonus, hiddenCleared: this.hiddenCleared,
+      achievements: this.achievements.slice(), achievementLog: this.achievementLog.slice(),
+      energyLowReached: this.energyLowReached, bestExamScore: this.bestExamScore,
+      perfectExams: this.perfectExams, calmExams: this.calmExams,
+      perfectScoreExams: this.perfectScoreExams, minExamScore: this.minExamScore,
+      burnedExams: this.burnedExams
     };
   }
 
@@ -602,8 +742,18 @@ class GameCore {
     core.hiddenCleared = (state.hiddenCleared || []).slice();
     if (state.choiceSeq !== undefined) core.choiceSeq = state.choiceSeq;
     if (state.rngState !== undefined) core.rng.setState(state.rngState);
+    // 成就与考试追踪字段（旧存档没有这些字段时保持默认，不报错）
+    if (state.achievements !== undefined) core.achievements = state.achievements.slice();
+    if (state.achievementLog !== undefined) core.achievementLog = state.achievementLog.map(item => ({ ...item }));
+    if (state.energyLowReached !== undefined) core.energyLowReached = state.energyLowReached;
+    if (state.bestExamScore !== undefined) core.bestExamScore = state.bestExamScore;
+    if (state.perfectExams !== undefined) core.perfectExams = state.perfectExams;
+    if (state.calmExams !== undefined) core.calmExams = state.calmExams;
+    if (state.perfectScoreExams !== undefined) core.perfectScoreExams = state.perfectScoreExams;
+    if (state.minExamScore !== undefined) core.minExamScore = state.minExamScore;
+    if (state.burnedExams !== undefined) core.burnedExams = state.burnedExams;
     return core;
   }
 }
 
-module.exports = { GameCore, pickExamQuestions, clamp, EFFECT_LABELS, effectLabel, effectTags };
+module.exports = { GameCore, pickExamQuestions, clamp, EFFECT_LABELS, effectLabel, effectTags, EXAM_QUESTION_MS };

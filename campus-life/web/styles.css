@@ -188,3 +188,141 @@
 /* 出现时轻轻抬起，用 translate 而不是 transform，避免和居中/悬停的 transform 打架 */
 @keyframes toastIn{from{opacity:0;translate:0 8px}to{opacity:1;translate:0 0}}
 .location-toast{animation:toastIn .24s cubic-bezier(.34,1.42,.64,1)}
+.achv-layer{position:fixed;z-index:40;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+.achv-toast{position:relative;margin-top:18px;width:min(560px,94vw);background:#fffdf3f8;border:1px solid #d9c58a;border-radius:16px;box-shadow:0 22px 70px #1e2e21c0,0 0 0 1px #ffffff88,0 0 44px #c4974326;overflow:visible;animation:achv-pop-in .62s cubic-bezier(.2,.9,.3,1.16) both}
+.achv-toast.tier-gold{box-shadow:0 22px 70px #1e2e21c0,0 0 0 1px #ffffff88,0 0 60px #c4974340;animation-name:achv-pop-in-gold}
+.achv-toast.achv-out{animation:achv-out .5s ease both}
+.achv-ribbon{position:relative;padding:8px 20px;background:linear-gradient(90deg,#b08d57,#d8b98a 55%,#b08d57);color:#fffdf0;display:flex;align-items:center;justify-content:space-between;gap:14px;border-radius:15px 15px 0 0;overflow:hidden}
+.achv-toast.tier-silver .achv-ribbon{background:linear-gradient(90deg,#7d94ab,#bcccdc 55%,#7d94ab)}
+.achv-toast.tier-gold .achv-ribbon{background:linear-gradient(90deg,#b3842e,#f0cf6d 55%,#b3842e)}
+.achv-ribbon:after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:45%;background:linear-gradient(105deg,transparent,#ffffff7d,transparent);animation:ribbon-shine 2.2s ease .3s infinite}
+.achv-tag{font-size:10px;letter-spacing:3px}
+.achv-ribbon-title{font:bold 15px "KaiTi",serif;letter-spacing:4px}
+.achv-main{display:flex;align-items:center;gap:16px;padding:15px 20px}
+.achv-icon{flex:0 0 auto;width:54px;height:54px;border:2px solid;border-radius:50%;display:flex;align-items:center;justify-content:center;font:bold 28px serif;background:#fffef7;animation:icon-pop .6s cubic-bezier(.2,.9,.3,1.4) .1s both}
+.achv-icon i{font-style:normal}
+.achv-toast.tier-gold .achv-icon{box-shadow:0 0 0 5px #c4974314,0 0 26px #c4974359;animation:icon-pop-glow .6s cubic-bezier(.2,.9,.3,1.4) .1s both}
+.achv-info{flex:1;min-width:0}
+.achv-info b{font-size:18px;color:#3c4f45;letter-spacing:1px}
+.achv-info small{display:block;color:#92978c;font-size:12px;margin-top:4px}
+.achv-tier{flex:0 0 auto;padding:5px 12px;border-radius:14px;color:#fffdf0;font-size:12px;letter-spacing:1px}
+@keyframes achv-pop-in{from{transform:translateY(-150%) scale(.86);opacity:0}60%{transform:translateY(10px) scale(1.02);opacity:1}to{transform:translateY(0) scale(1);opacity:1}}
+@keyframes achv-pop-in-gold{from{transform:translateY(-160%) scale(.8) rotate(-1.5deg);opacity:0}55%{transform:translateY(12px) scale(1.04) rotate(.6deg);opacity:1}to{transform:translateY(0) scale(1) rotate(0);opacity:1}}
+@keyframes achv-out{from{transform:translateY(0);opacity:1}to{transform:translateY(-150%);opacity:0}}
+@keyframes ribbon-shine{0%{left:-60%}55%,100%{left:120%}}
+@keyframes icon-pop{from{transform:scale(0) rotate(-90deg)}70%{transform:scale(1.18) rotate(6deg)}to{transform:scale(1) rotate(0)}}
+@keyframes icon-pop-glow{from{transform:scale(0) rotate(-90deg);box-shadow:0 0 0 0 #c4974300}70%{transform:scale(1.22) rotate(6deg);box-shadow:0 0 0 10px #c4974320,0 0 34px #c4974377}to{transform:scale(1) rotate(0);box-shadow:0 0 0 5px #c4974314,0 0 26px #c4974359}}
+/* 金级成就粒子彩带（由 JS 注入 10 枚） */
+.confetti{position:absolute;top:6px;left:50%;width:7px;height:11px;border-radius:2px;opacity:0;animation:confetti-fall 1.5s ease-out .35s forwards;pointer-events:none}
+.confetti.c1{--cx:-210px;--cy:120px;--rot:340deg;background:#c49743}
+.confetti.c2{--cx:-160px;--cy:150px;--rot:-300deg;background:#e3c26f}
+.confetti.c3{--cx:-110px;--cy:170px;--rot:380deg;background:#a57b9c}
+.confetti.c4{--cx:-60px;--cy:160px;--rot:-260deg;background:#5b9272}
+.confetti.c5{--cx:-10px;--cy:185px;--rot:320deg;background:#c96b4f}
+.confetti.c6{--cx:40px;--cy:160px;--rot:-340deg;background:#5d7ea8}
+.confetti.c7{--cx:90px;--cy:175px;--rot:300deg;background:#c49743}
+.confetti.c8{--cx:140px;--cy:150px;--rot:-380deg;background:#e3c26f}
+.confetti.c9{--cx:190px;--cy:125px;--rot:340deg;background:#ae7b9f}
+.confetti.c10{--cx:240px;--cy:100px;--rot:-320deg;background:#b08d57}
+@keyframes confetti-fall{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(var(--cx),var(--cy)) rotate(var(--rot));opacity:0}}
+/* 屏幕边缘金光闪烁 */
+.achv-flash{position:fixed;z-index:39;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 46%,#c4974333 78%,#c4974366 100%)}
+.achv-flash.achv-flash-on{animation:screen-flash 1s ease-out}
+.achv-flash.tier-bronze.achv-flash-on{animation-duration:.6s;animation-name:screen-flash-soft}
+.achv-flash.tier-silver.achv-flash-on{animation-duration:.8s}
+.achv-flash.tier-gold{background:radial-gradient(ellipse at center,transparent 38%,#c497434d 72%,#e3c26f99 100%)}
+@keyframes screen-flash{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+@keyframes screen-flash-soft{0%{opacity:0}20%{opacity:.6}100%{opacity:0}}
+/* HUD 成就计数弹跳 */
+.achv-count{font-size:10px;color:#d4c792;letter-spacing:1px;margin-top:8px}
+.achv-count.bump{animation:count-bump .6s ease}
+@keyframes count-bump{0%,100%{transform:scale(1)}30%{transform:scale(1.22);color:#f0cf6d}}
+/* 结算页新成就汇总条 */
+.semester-achv{margin:18px 0;padding:14px 16px;background:linear-gradient(130deg,#f6efdd,#f3e9cf);border:1px solid #e0cf9c;border-radius:13px;text-align:left}
+.semester-achv-title{font-size:12px;color:#9b774d;letter-spacing:2px}
+.semester-achv-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.achv-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:16px;background:#fffdf3;border:1px solid #e5d8b0;font-size:13px;color:#43564b;animation:achv-pop-in .5s cubic-bezier(.2,.9,.3,1.2) both}
+.achv-chip.tier-gold{border-color:#d8b45c;box-shadow:0 0 14px #c4974326}
+.achv-chip i{font-style:normal;font-weight:bold}
+
+/* ===== 学期成绩柱状对比 ===== */
+.semester-chart{margin:20px 0;padding:15px 17px;background:#f4f0e5;border-radius:13px}
+.chart-title{font-size:11px;color:#8b8c7e;letter-spacing:2px;text-align:left}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;height:118px;margin-top:10px}
+.chart-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;min-width:0}
+.chart-value{font-size:11px;color:#9b9989}
+.chart-col i{display:block;width:72%;max-width:26px;background:linear-gradient(180deg,#9db98a,#7d9275);border-radius:4px 4px 0 0;transition:height .4s}
+.chart-col.current i{background:linear-gradient(180deg,#e3c26f,#c49743)}
+.chart-label{font-size:10px;color:#a1a195}
+.chart-caption{text-align:center;font-size:11px;color:#8b8c7e;margin-top:10px}
+.chart-caption b.up{color:#63815e}.chart-caption b.down{color:#b37962}
+
+/* ===== 期末考倒计时 ===== */
+.exam-timer-row{display:flex;align-items:center;gap:12px;margin:0 0 20px;padding:11px 14px;background:#f4f0e5;border-radius:12px}
+.exam-timer-label{font-size:12px;color:#8b8c7e;white-space:nowrap}
+.exam-timer-num{font:bold 21px "Courier New",monospace;color:#8f7447;min-width:62px;text-align:center}
+.exam-timer-track{flex:1;height:6px;background:#ebe8dc;border-radius:4px;overflow:hidden}
+.exam-timer-track i{display:block;height:100%;background:linear-gradient(90deg,#d7b569,#e9cb7d);transition:width .12s linear}
+.exam-hurry .exam-timer-num{color:#b3543d;animation:achv-pulse 1s infinite}
+.exam-hurry .exam-timer-track i{background:#c96b4f}
+@keyframes achv-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.exam-timeout-flash .exam-question{animation:achv-shake .5s;color:#b3543d}
+@keyframes achv-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.timer-rule{margin-top:-12px}
+
+/* ===== 成就图鉴面板 ===== */
+.achv-count{font-size:10px;color:#d4c792;letter-spacing:1px;margin-top:8px}
+.achv-summary{display:flex;align-items:center;gap:12px;margin:2px 0 18px}
+.achv-summary-bar{flex:1;height:5px;background:#ebe8dc;border-radius:4px;overflow:hidden}
+.achv-summary-bar i{display:block;height:100%;background:linear-gradient(90deg,#c49743,#e3c26f)}
+.achv-summary span{font-size:12px;color:#8b8c7e;white-space:nowrap}
+.achv-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;text-align:left;max-height:54vh;overflow-y:auto;padding-right:2px}
+.achv-cell{display:flex;gap:11px;padding:12px;background:#f6f2e8;border:1px solid #e9e2d2;border-radius:12px;opacity:.62}
+.achv-cell.on{opacity:1;background:#f3f1e3;border-color:#d8c58a}
+.achv-cell-icon{flex:0 0 auto;width:38px;height:38px;border:2px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font:bold 19px serif;background:#fffef7}
+.achv-cell-body{flex:1;min-width:0}
+.achv-cell-body b{font-size:14px;color:#43564b;display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.achv-cell-body b small{color:#9a896e;font-size:10px;font-weight:400;white-space:nowrap}
+.achv-cell-body p{margin:4px 0 0;font-size:11px;color:#7e867c;line-height:1.5}
+.achv-cell-bar{height:4px;background:#e6e1d2;border-radius:3px;margin-top:7px;overflow:hidden}
+.achv-cell-bar i{display:block;height:100%;background:#9db98a}
+.achv-cell.on .achv-cell-bar i{background:#c49743}
+@media(max-width:760px){.achv-grid{grid-template-columns:1fr}.achv-toast{margin-top:12px}.exam-timer-num{font-size:18px;min-width:54px}}
+
+/* ===== 隐藏成就：虹光飘条 + 全屏虹光 + 彩色粒子 ===== */
+.achv-toast.tier-hidden{background:linear-gradient(135deg,#2a1f45f5,#3a2a5cf5);border-color:#b79bff;box-shadow:0 26px 80px #1b1233d0,0 0 0 1px #ffffff33,0 0 70px #8a6bd166,0 0 140px #c99bff40;animation:secret-in .8s cubic-bezier(.2,.9,.25,1.12) both}
+.achv-toast.tier-hidden .achv-ribbon{background:linear-gradient(100deg,#ff7ea8,#ffd76e,#7ef0c4,#7ec8ff,#c99bff,#ff7ea8);background-size:300% 100%;animation:secret-ribbon-flow 3.2s linear infinite;color:#2a1d44}
+.achv-toast.tier-hidden .achv-ribbon-title{color:#2a1d44}
+.achv-toast.tier-hidden .achv-info b{color:#fff5d6}
+.achv-toast.tier-hidden .achv-info small{color:#c9bde8}
+.achv-toast.tier-hidden .achv-icon{color:#7a4d0a!important;border-color:#e6cf7a!important;background:radial-gradient(circle at 50% 35%,#fff8dc,#f0dda6);box-shadow:0 0 0 6px #ffffff22,0 0 34px #ffd76e8c;animation:secret-icon 1.4s ease-in-out infinite}
+.achv-toast.tier-hidden .achv-tier{background:linear-gradient(90deg,#ffe08a,#e3bd63)!important;color:#3a2a10!important;font-weight:700;box-shadow:0 0 18px #ffd76e66}
+.secret-rays{position:absolute;left:50%;top:40px;width:340px;height:340px;margin-left:-170px;pointer-events:none;border-radius:50%;opacity:.22;mix-blend-mode:screen;z-index:-1;background:conic-gradient(from 0deg,#ffd76e00 0deg,#ffd76e88 7deg,#ffd76e00 15deg,#ff7ea888 38deg,#ff7ea800 46deg,#7ec8ff88 78deg,#7ec8ff00 86deg,#7ef0c488 118deg,#7ef0c400 126deg,#c99bff88 158deg,#c99bff00 166deg,#ffd76e88 198deg,#ffd76e00 206deg,#ff7ea888 238deg,#ff7ea800 246deg,#7ec8ff88 278deg,#7ec8ff00 286deg,#7ef0c488 318deg,#7ef0c400 326deg,#c99bff88 350deg,#c99bff00 360deg);animation:secret-rays-spin 7s linear infinite}
+.confetti.secret-bit{width:9px;height:9px;border-radius:50%}
+@keyframes secret-ribbon-flow{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+@keyframes secret-in{0%{transform:translateY(-160%) scale(.82) rotate(-2deg);opacity:0}55%{transform:translateY(8px) scale(1.04) rotate(.6deg);opacity:1}100%{transform:translateY(0) scale(1) rotate(0);opacity:1}}
+@keyframes secret-icon{0%,100%{transform:scale(1) rotate(-4deg)}50%{transform:scale(1.1) rotate(4deg)}}
+@keyframes secret-rays-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.achv-flash.tier-hidden{background:radial-gradient(ellipse at center,transparent 26%,#c99bff40 58%,#ffd76e88 86%,#ff7ea8aa 100%)}
+.achv-flash.tier-hidden.achv-flash-on{animation:secret-flash 2.2s ease-out}
+@keyframes secret-flash{0%{opacity:0}12%{opacity:1}45%{opacity:.32}70%{opacity:.88}100%{opacity:0}}
+
+/* 图鉴中的隐藏成就 */
+.achv-hidden-hint{margin:-4px 0 14px;padding:10px 13px;background:#f2edfa;border:1px dashed #cdbcf0;border-radius:11px;font-size:11px;color:#7b6a9e;text-align:left;line-height:1.6}
+.achv-hidden-hint b{color:#7c4dff}
+.achv-hidden-hint.done{background:#f6efdd;border-color:#e0cf9c;color:#9b774d}
+.achv-cell.secret{background:linear-gradient(135deg,#f7f1ff,#f1ecfa);border-color:#d9c9f2}
+.achv-cell.secret.on{border-color:#b79bff;box-shadow:0 0 24px #8a6bd12e}
+.achv-cell.secret.locked{opacity:.85;border-style:dashed;background:repeating-linear-gradient(135deg,#f6f2fa,#f6f2fa 9px,#f1ecf8 9px,#f1ecf8 18px)}
+.achv-cell.secret.locked .achv-cell-icon{color:#b9a8d8;border-color:#cdbcf0;background:#fbf8ff;animation:secret-q 2.6s ease-in-out infinite}
+.achv-cell.secret.locked b{color:#8d7fa8}
+.achv-cell.secret.locked p{color:#a79bbd}
+@keyframes secret-q{0%,100%{transform:scale(1);opacity:.72}50%{transform:scale(1.08);opacity:1}}
+
+.achv-chip.tier-hidden{border-color:#b79bff;background:linear-gradient(120deg,#f4ecff,#efe6ff);color:#6c4fb0;box-shadow:0 0 16px #8a6bd12e}
+
+/* ===== 成就计数（main 浅色状态卡，改用深色文字） ===== */
+.status-card .achv-count{color:#8a7b52;font-size:11px;letter-spacing:1px;margin-top:9px;text-align:left}
+.header-button.achv-button{font:20px serif}
+.achv-panel{max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.achv-panel .achv-grid{flex:1;min-height:0}

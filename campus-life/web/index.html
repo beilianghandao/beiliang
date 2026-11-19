@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#f6f0e4">
   <title>青梧大学 · 大学生存图鉴</title>
-  <link rel="stylesheet" href="styles.css?v=6ffefa03">
+  <link rel="stylesheet" href="styles.css?v=8af03902">
 </head>
 <body>
   <main id="select-screen" class="select-page">
@@ -42,15 +42,17 @@
 
   <main id="game-screen" class="game-page hidden">
     <canvas id="campus"></canvas><div class="top-shade"></div>
-    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><div class="header-right"><span id="seed-pill" class="seed-pill" title="本局种子码"></span><button id="log-button" class="header-button" aria-label="选择日志">记</button><button id="cause-button" class="header-button cause-button" aria-label="因果面板">因<span id="cause-badge" class="cause-badge hidden">0</span></button><button id="event-button" class="header-button event-button" aria-label="等着你的事">✉<span id="event-badge" class="event-badge hidden">0</span></button><button id="guide-button" class="header-button" aria-label="校园指南">?</button></div></header>
-    <section class="status-card"><div class="profile-row"><div id="profile-avatar" class="profile-avatar"></div><div class="profile-info"><b id="profile-name"></b><small id="profile-title"></small></div><div class="energy">精力 <b id="energy-value"></b></div></div><div class="energy-track"><i id="energy-bar"></i></div><div id="stats-row" class="stats-row"></div><div id="legacy-chip" class="legacy-chip hidden"></div></section>
+    <header class="game-header"><div class="brand"><div class="brand-seal">梧</div><div><b>青梧大学</b><small>CAMPUS LIFE</small></div></div><div id="week-pill" class="week-pill"></div><div class="header-right"><span id="seed-pill" class="seed-pill" title="本局种子码"></span><button id="log-button" class="header-button" aria-label="选择日志">记</button><button id="cause-button" class="header-button cause-button" aria-label="因果面板">因<span id="cause-badge" class="cause-badge hidden">0</span></button><button id="event-button" class="header-button event-button" aria-label="等着你的事">✉<span id="event-badge" class="event-badge hidden">0</span></button><button id="achv-button" class="header-button achv-button" aria-label="成就图鉴">徽</button><button id="guide-button" class="header-button" aria-label="校园指南">?</button></div></header>
+    <section class="status-card"><div class="profile-row"><div id="profile-avatar" class="profile-avatar"></div><div class="profile-info"><b id="profile-name"></b><small id="profile-title"></small></div><div class="energy">精力 <b id="energy-value"></b></div></div><div class="energy-track"><i id="energy-bar"></i></div><div id="stats-row" class="stats-row"></div><div id="legacy-chip" class="legacy-chip hidden"></div><div id="achv-count" class="achv-count">已解锁成就 0 / 48</div></section>
     <div class="keyboard-tip">WASD / 方向键移动 · 点击地图寻路 · 靠近建筑后点击提示卡片进入 · E 互动</div>
     <button id="location-toast" class="location-toast hidden" type="button" aria-label="进入当前场景"></button>
     <div id="toast" class="toast hidden"></div>
     <div id="joystick" class="joystick"><div class="joy-ring"></div><div class="joy-arrows">⌃</div><div id="joy-knob" class="joy-knob"></div></div>
     <button id="exam-button" class="exam-button hidden">期末周已到达 · 进入考试 →</button>
+    <div id="achv-flash" class="achv-flash"></div>
+    <div id="achv-layer" class="achv-layer"></div>
     <div id="modal-mask" class="modal-mask hidden"><div id="modal-content"></div></div>
   </main>
-  <script src="bundle.js?v=eef492c3"></script><script src="app.js?v=eef492c3"></script>
+  <script src="bundle.js?v=85f96e90"></script><script src="app.js?v=85f96e90"></script>
 </body>
 </html>
