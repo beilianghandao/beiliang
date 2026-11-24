@@ -4034,7 +4034,10 @@ class CampusWorld {
   visitorPositions() {
     const map = {};
     Object.keys(this.visitors).forEach(id => {
-      map[id] = { x: this.visitors[id].x, y: this.visitors[id].y };
+      const v = this.visitors[id];
+      // moving / facing 必须一起传：渲染器靠它们决定切走路帧、画侧面还是正面。
+      // 只给坐标的话，NPC 会永远正面朝下、用站立图平移，看着像滑行的幽灵。
+      map[id] = { x: v.x, y: v.y, moving: !!v.moving, facing: v.facing || 'down' };
     });
     return map;
   }
